@@ -108,7 +108,7 @@ Without `VITE_GOOGLE_CLIENT_ID` the Google buttons are hidden and email sign-in 
 
 ## 🧪 Tests
 
-The backend suite (130 tests) needs only a local Postgres: no Groq, no Hugging Face, no network.
+The backend suite (133 tests) needs only a local Postgres: no Groq, no Hugging Face, no network.
 
 ```bash
 cd backend
@@ -142,13 +142,13 @@ npm run build
 
 Nothing is deployed by this repo; it contains the config to do so. See the Deployment section of [HANDOFF.md](HANDOFF.md) for details.
 
-- **API, Docker:** [`backend/Dockerfile`](backend/Dockerfile) (Python 3.11 slim, CPU torch, model pre-downloaded unless `--build-arg PRELOAD_MODEL=false`). On start it runs `alembic upgrade head`, then uvicorn on `$PORT` (default 8000) with proxy headers so rate limits see the real client IP.
+- **API, Docker:** [`backend/Dockerfile`](backend/Dockerfile) (Python 3.11 slim, CPU torch, model pre-downloaded unless `--build-arg PRELOAD_MODEL=false`). On start it runs `alembic upgrade head`, then uvicorn on `$PORT` (default 8000). It trusts `X-Forwarded-For` only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`); behind an edge proxy, set `CLIENT_IP_HEADER` so rate limits see the real client IP.
   ```bash
   docker build -t pathshala-api backend
   docker run --env-file backend/.env -p 8000:8000 pathshala-api
   ```
   Inside a container `localhost` is the container itself, so point `DATABASE_URL` at a reachable host (on Linux, add `--network host` instead of `-p 8000:8000` to use the host's Postgres).
-- **API, Render:** [`render.yaml`](render.yaml) is a Blueprint for the Docker service with a health check on `/health`, a 1 GB disk at `/var/data` (uploads and Chroma), an optional managed Postgres, and every secret as `sync: false`.
+- **API, Render:** [`render.yaml`](render.yaml) is a Blueprint for the Docker service with a health check on `/health`, a 1 GB disk at `/var/data` (uploads and Chroma), `CLIENT_IP_HEADER=cf-connecting-ip` for rate limits, an optional managed Postgres on the paid `basic-256mb` plan (Render's free Postgres expires after 30 days), and every secret as `sync: false`.
 - **Frontend, Vercel:** [`frontend/vercel.json`](frontend/vercel.json) rewrites every path to `index.html`, so deep links like `/quizzes` survive a refresh. Set `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` in the Vercel project (they're baked in at build time).
 - **Google OAuth:** add the production frontend origin to the OAuth client's *Authorized JavaScript origins*, and to the API's `FRONTEND_URL`.
 - **Memory:** sentence-transformers plus torch need about 1 GB of RAM, so very small instances run out of memory on the first upload. `render.yaml` uses the `standard` plan for that reason.
@@ -185,7 +185,8 @@ No real values belong in this file or in git. `backend/.env` and `frontend/.env*
 | `RATE_LIMIT_ENABLED` | `true` | Turns the per-IP rate limits on or off. |
 | `RATE_LIMIT_STORAGE_URI` | *(empty = in-process memory)* | Shared counter store, e.g. `redis://host:6379` (needs the `redis` package, not installed by default). |
 | `PORT` | `8000` | Docker image only: port uvicorn listens on (Render sets it). |
-| `FORWARDED_ALLOW_IPS` | `*` | Docker image only: proxies uvicorn trusts for `X-Forwarded-For`. |
+| `CLIENT_IP_HEADER` | *(empty = connection peer address)* | Request header holding the real client IP for rate limits, set by your edge proxy (`cf-connecting-ip` on Render). Only set it if the proxy always overwrites that header. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Docker image only: proxy addresses uvicorn trusts for `X-Forwarded-For`. Avoid `*`: the left-most entry is client-controlled behind an appending proxy. |
 | `TEST_DATABASE_URL` | `postgresql+psycopg2://postgres:postgres@localhost:5432/pathshala_test` | Tests only, read from the shell. Database name must end in `_test`. |
 
 ### Frontend (`frontend/.env.local`, read at build time)

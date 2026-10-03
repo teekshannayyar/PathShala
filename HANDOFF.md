@@ -130,7 +130,7 @@ createdb pathshala_test
 TEST_DATABASE_URL=postgresql+psycopg2://postgres:<password>@localhost:5432/pathshala_test pytest -q
 ```
 
-- 130 tests. They need only a local Postgres. The suite rebuilds the test database's schema with Alembic and truncates every table between tests, so `TEST_DATABASE_URL` must name a database ending in `_test`; anything else makes it exit before touching the database.
+- 133 tests. They need only a local Postgres. The suite rebuilds the test database's schema with Alembic and truncates every table between tests, so `TEST_DATABASE_URL` must name a database ending in `_test`; anything else makes it exit before touching the database.
 - `tests/conftest.py` sets every app setting itself before importing the app, so a developer's `backend/.env` can't leak in.
 - **Fakes, not network:** the routes get their services through `Depends(get_llm_service)` and `Depends(get_embedding_service)`, and tests swap them with `app.dependency_overrides` for a fake Groq client (canned answers and quiz JSON) and an in-memory Chroma with `FakeEmbedder`. Outbound sockets are blocked, so an accidental real call fails loudly.
 - Rate limits are off in tests (`RATE_LIMIT_ENABLED=false`) except in `test_rate_limit.py`.
@@ -223,7 +223,7 @@ All under `/api` except `/health`. "Auth" means `Authorization: Bearer <JWT>`. D
 
 ### Rate limits
 
-slowapi, keyed by client IP (`app/core/rate_limit.py`): register/login/Google 10 per minute, password change 10 per hour, chat 30 per minute, quiz generation 10 per hour, upload 20 per hour. Over the limit the API answers 429 with a readable `detail`, and CORS headers are still present so the browser shows the message. Counters live in process memory unless `RATE_LIMIT_STORAGE_URI` points at Redis. Behind a proxy, uvicorn must run with `--proxy-headers` (the Docker image does) or every user shares the proxy's IP.
+slowapi, keyed by client IP (`app/core/rate_limit.py`): register/login/Google 10 per minute, password change 10 per hour, chat 30 per minute, quiz generation 10 per hour, upload 20 per hour. Over the limit the API answers 429 with a readable `detail`, and CORS headers are still present so the browser shows the message. Counters live in process memory unless `RATE_LIMIT_STORAGE_URI` points at Redis. The key is the `CLIENT_IP_HEADER` request header when set (first value), else the connection's peer address. Behind a proxy, set `CLIENT_IP_HEADER` to a header the proxy always overwrites (`render.yaml` uses `cf-connecting-ip`), or every user shares the proxy's IP. Don't key on `X-Forwarded-For` with all proxies trusted: proxies append to it, so its left-most entry is whatever the client sent.
 
 ---
 
@@ -231,12 +231,12 @@ slowapi, keyed by client IP (`app/core/rate_limit.py`): register/login/Google 10
 
 Config only; nothing has been deployed.
 
-- **Docker (`backend/Dockerfile`):** `python:3.11-slim`, CPU-only torch, `all-MiniLM-L6-v2` baked in (skip with `--build-arg PRELOAD_MODEL=false`). The container runs `alembic upgrade head`, then uvicorn on `${PORT:-8000}` with `--proxy-headers --forwarded-allow-ips="${FORWARDED_ALLOW_IPS:-*}"`. If your proxy appends to a client-supplied `X-Forwarded-For` instead of replacing it, set `FORWARDED_ALLOW_IPS` to the proxy's addresses so clients can't choose their own rate-limit key.
+- **Docker (`backend/Dockerfile`):** `python:3.11-slim`, CPU-only torch, `all-MiniLM-L6-v2` baked in (skip with `--build-arg PRELOAD_MODEL=false`). The container runs `alembic upgrade head`, then uvicorn on `${PORT:-8000}` with `--proxy-headers --forwarded-allow-ips="${FORWARDED_ALLOW_IPS:-127.0.0.1}"`. Widen `FORWARDED_ALLOW_IPS` only to your proxy's addresses, never `*`, and set `CLIENT_IP_HEADER` for rate limits behind an edge proxy.
   ```bash
   docker build -t pathshala-api backend
   docker run --env-file backend/.env -p 8000:8000 pathshala-api
   ```
-- **Render (`render.yaml`):** Docker web service rooted at `backend/`, `healthCheckPath: /health`, `standard` plan, a 1 GB disk at `/var/data` with `UPLOAD_DIR=/var/data/uploads` and `CHROMA_PATH=/var/data/chroma`, and an optional managed Postgres wired into `DATABASE_URL`. `GROQ_API_KEY`, `SECRET_KEY`, `GOOGLE_CLIENT_ID` and `FRONTEND_URL` are `sync: false`, so Render asks for them and they never live in the repo.
+- **Render (`render.yaml`):** Docker web service rooted at `backend/`, `healthCheckPath: /health`, `standard` plan, a 1 GB disk at `/var/data` with `UPLOAD_DIR=/var/data/uploads` and `CHROMA_PATH=/var/data/chroma`, `CLIENT_IP_HEADER=cf-connecting-ip` (Render's Cloudflare edge overwrites that header, so it's the real client IP), and an optional managed Postgres on the paid `basic-256mb` plan wired into `DATABASE_URL` (Render's free Postgres expires after 30 days; resize as needed). `GROQ_API_KEY`, `SECRET_KEY`, `GOOGLE_CLIENT_ID` and `FRONTEND_URL` are `sync: false`, so Render asks for them and they never live in the repo.
 - **Vercel (`frontend/vercel.json`):** rewrites everything to `/index.html`. Set `VITE_API_URL` (the API's public URL) and `VITE_GOOGLE_CLIENT_ID` in the Vercel project settings; they're compiled in at build time, so redeploy after changing them.
 - **Google OAuth:** add the production frontend origin (e.g. `https://pathshala.vercel.app`) to *Authorized JavaScript origins* on the OAuth client, and to the API's `FRONTEND_URL`.
 - **Memory:** torch plus the embedding model need about 1 GB of RAM; 512 MB instances can run out of memory on the first upload. Use a bigger plan, or `EMBEDDING_BACKEND=fake` only for demos.
@@ -255,7 +255,7 @@ Config only; nothing has been deployed.
 - Study streaks and activity in the user's timezone
 - Document manager: folders, rename, delete, bulk delete
 - Per-IP rate limits, multi-origin CORS, four Chroma modes
-- Alembic migrations, 130 offline tests, CI, Docker/Render/Vercel config
+- Alembic migrations, 133 offline tests, CI, Docker/Render/Vercel config
 - Phone-width layout, 404 page, toasts and confirmation modals
 
 ---

@@ -136,3 +136,54 @@ def test_delete_document_removes_file_and_vectors(client, auth_headers, upload_p
     assert not fake_embedding_service.collection.get(where={"document_id": doc_id})["ids"]
     db.expire_all()
     assert db.get(Document, doc_id) is None
+
+
+def _set_processing(db, doc_id, minutes_ago: int) -> None:
+    from sqlalchemy import text
+
+    db.execute(
+        text(
+            "UPDATE documents SET processing_status = 'processing', "
+            "updated_at = now() - make_interval(mins => :m) WHERE id = :id"
+        ),
+        {"m": minutes_ago, "id": doc_id},
+    )
+    db.commit()
+
+
+def test_reprocess_refuses_fresh_processing_but_accepts_stale(client, auth_headers, upload_pdf, db):
+    headers = auth_headers()
+    doc_id = upload_pdf(headers).json()["id"]
+
+    _set_processing(db, doc_id, minutes_ago=1)
+    assert client.post(f"/api/documents/{doc_id}/reprocess", headers=headers).status_code == 409
+
+    _set_processing(db, doc_id, minutes_ago=11)
+    resp = client.post(f"/api/documents/{doc_id}/reprocess", headers=headers)
+    assert resp.status_code == 200, resp.text
+    db.expire_all()
+    assert db.get(Document, doc_id).processing_status == "ready"
+
+
+def test_document_deleted_during_processing_leaves_no_row_or_vectors(
+    client, auth_headers, upload_pdf, fake_embedding_service, monkeypatch, db
+):
+    from sqlalchemy import text
+
+    from app.models.database import engine
+
+    real_add = fake_embedding_service.add_chunks
+
+    def add_then_user_deletes(document_id, chunks):
+        real_add(document_id, chunks)
+        # The user deletes the document while the task is still running.
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM documents WHERE id = :id"), {"id": document_id})
+
+    monkeypatch.setattr(fake_embedding_service, "add_chunks", add_then_user_deletes)
+    resp = upload_pdf(auth_headers())
+    assert resp.status_code == 200
+    doc_id = resp.json()["id"]
+
+    assert db.get(Document, doc_id) is None
+    assert not fake_embedding_service.collection.get(where={"document_id": doc_id})["ids"]

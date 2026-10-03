@@ -51,6 +51,7 @@ class PDFService:
         from app.models.models import Document
 
         db = SessionLocal()
+        chunks_added = False
         try:
             doc = db.query(Document).filter(Document.id == document_id).first()
             if not doc:
@@ -74,6 +75,7 @@ class PDFService:
                 embedding_service = embedding_service_module.get_embedding_service()
                 embedding_service.delete_document(document_id)
                 embedding_service.add_chunks(document_id, chunks)
+                chunks_added = True
 
                 doc.original_text = text
                 doc.total_chunks = len(chunks)
@@ -84,10 +86,24 @@ class PDFService:
                 logger.info("Processed document %s into %d chunks", document_id, len(chunks))
             except Exception as e:
                 db.rollback()
+                # The user may have deleted the document while we were working
+                # (the file vanishes and the final UPDATE matches no row).
+                if db.query(Document.id).filter(Document.id == document_id).first() is None:
+                    logger.info("Document %s was deleted during processing", document_id)
+                    if chunks_added:
+                        # The delete route may have cleared vectors before we added ours.
+                        embedding_service.delete_document(document_id)
+                    return
+
+                logger.exception("Failed to process document %s", document_id)
                 doc.processing_status = "failed"
                 doc.processing_error = str(e)[:MAX_ERROR_LENGTH]
                 doc.embedding_complete = False
                 db.commit()
-                logger.exception("Failed to process document %s", document_id)
+        except Exception:
+            # Never let a background task raise. If the row is left in
+            # "processing", reprocess accepts it once it goes stale.
+            db.rollback()
+            logger.exception("Could not record processing result for document %s", document_id)
         finally:
             db.close()

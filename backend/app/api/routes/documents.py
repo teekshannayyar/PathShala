@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.api.deps import get_owned_document
 from app.models.database import get_db
@@ -9,8 +10,13 @@ from app.services.pdf_service import PDFService
 from app.services.upload_service import max_upload_bytes, save_pdf_upload
 from app.api.routes.auth import get_current_user
 from app.core.config import settings
+from datetime import timedelta
 from typing import List
 import os
+
+# A document still "processing" after this long is assumed stuck (e.g. the
+# server restarted mid-task) and may be reprocessed.
+STALE_PROCESSING_MINUTES = 10
 
 # Allowance for multipart boundaries/headers on top of the file itself.
 MULTIPART_OVERHEAD_BYTES = 1024 * 1024
@@ -97,6 +103,16 @@ def delete_document(
     db.commit()
     return {"message": "Document deleted successfully"}
 
+def _is_stale(db: Session, document_id: int) -> bool:
+    """True if the document hasn't been touched for STALE_PROCESSING_MINUTES.
+
+    Compared in SQL so the DB clock is used on both sides."""
+    last_touched = func.coalesce(Document.updated_at, Document.created_at)
+    cutoff = func.now() - timedelta(minutes=STALE_PROCESSING_MINUTES)
+    return bool(
+        db.query(last_touched < cutoff).filter(Document.id == document_id).scalar()
+    )
+
 @router.post("/{document_id}/reprocess", response_model=DocumentResponse)
 def reprocess_document(
     document_id: int,
@@ -108,7 +124,7 @@ def reprocess_document(
     original_text was stored, or after a failed run."""
     doc = get_owned_document(db, document_id, current_user)
 
-    if doc.processing_status == "processing":
+    if doc.processing_status == "processing" and not _is_stale(db, doc.id):
         raise HTTPException(status_code=409, detail="Document is already processing")
     if not doc.file_path or not os.path.exists(doc.file_path):
         raise HTTPException(status_code=410, detail="The original PDF is no longer available; please upload it again")

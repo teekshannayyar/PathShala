@@ -92,3 +92,32 @@ def test_submit_scores_answers(client, ready_doc, fake_llm):
     assert resp.status_code == 200
     assert resp.json()["score"] == 6
     assert resp.json()["total"] == 10
+
+
+def _groq_bad_request(code: str):
+    import groq
+    import httpx
+
+    request = httpx.Request("POST", "https://api.groq.invalid/openai/v1/chat/completions")
+    body = {"error": {"message": "rejected", "type": "invalid_request_error", "code": code}}
+    return groq.BadRequestError("rejected", response=httpx.Response(400, request=request, json=body), body=body)
+
+
+def test_groq_json_validate_failed_is_retried(client, ready_doc, fake_groq, db):
+    headers, doc_id = ready_doc
+    fake_groq.queue(_groq_bad_request("json_validate_failed"), make_quiz_json(10))
+
+    resp = client.post(f"/api/quizzes/generate/{doc_id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert len(fake_groq.calls) == 2
+    assert db.query(Question).count() == 10
+
+
+def test_other_groq_bad_request_is_not_retried(client, ready_doc, fake_groq, db):
+    headers, doc_id = ready_doc
+    fake_groq.queue(_groq_bad_request("model_not_found"), make_quiz_json(10))
+
+    resp = client.post(f"/api/quizzes/generate/{doc_id}", headers=headers)
+    assert resp.status_code == 502
+    assert len(fake_groq.calls) == 1
+    assert db.query(Quiz).count() == 0

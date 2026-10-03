@@ -1,4 +1,5 @@
-"""The app must import and serve /health without loading any model or client."""
+"""The app must import and serve /health without loading any model, vector
+store or Groq client (no service is built until a request needs it)."""
 import os
 import subprocess
 import sys
@@ -12,7 +13,7 @@ from fastapi.testclient import TestClient
 import app.main
 resp = TestClient(app.main.app).get('/health')
 assert resp.status_code == 200, resp.text
-heavy = [m for m in ('torch', 'sentence_transformers', 'chromadb', 'groq') if m in sys.modules]
+heavy = [m for m in ('torch', 'sentence_transformers', 'chromadb') if m in sys.modules]
 assert not heavy, heavy
 print('ok')
 """

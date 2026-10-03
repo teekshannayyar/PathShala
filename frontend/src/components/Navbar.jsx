@@ -1,0 +1,112 @@
+import React, { useRef, useState } from 'react';
+import { Plus, Settings, LogOut, BookOpen, Loader2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { uploadDocument } from '../api';
+import toast from 'react-hot-toast';
+import './Navbar.css';
+
+export default function Navbar({ user, onLogout, setActiveDocument }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleNewChat = () => {
+    // Instead of just navigating, we can directly prompt for a file upload
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File is too large! Please upload a PDF smaller than 10MB.");
+      return;
+    }
+
+    setIsUploading(true);
+    toast.loading("Uploading and processing PDF...", { id: 'upload' });
+    try {
+      const newDoc = await uploadDocument(file);
+      setActiveDocument(newDoc);
+      toast.success("PDF uploaded successfully!", { id: 'upload' });
+      navigate('/chat');
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast.error("Failed to upload document", { id: 'upload' });
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = null;
+    }
+  };
+
+  return (
+    <>
+      <nav className="top-navbar glass">
+        <div className="navbar-brand" onClick={() => navigate('/dashboard')}>
+          <BookOpen size={24} className="brand-icon" />
+          <h2>PathShala</h2>
+        </div>
+
+        <div className="navbar-right">
+          <div className="navbar-links">
+            <button 
+              className={`nav-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
+              onClick={() => navigate('/dashboard')}
+            >
+              Dashboard
+            </button>
+            <button 
+              className={`nav-link ${location.pathname === '/documents' ? 'active' : ''}`}
+              onClick={() => navigate('/documents')}
+            >
+              Documents
+            </button>
+            <button 
+              className={`nav-link ${location.pathname === '/chat' ? 'active' : ''}`}
+              onClick={() => navigate('/chat')}
+            >
+              Chat
+            </button>
+            <button 
+              className={`nav-link ${location.pathname.startsWith('/quizzes') ? 'active' : ''}`}
+              onClick={() => navigate('/quizzes')}
+            >
+              Quizzes
+            </button>
+          </div>
+
+          <div className="navbar-divider"></div>
+
+          <input 
+            type="file" 
+            accept=".pdf" 
+            ref={fileInputRef} 
+            style={{ display: 'none' }} 
+            onChange={handleFileChange}
+          />
+
+          <button className="nav-new-chat-btn" onClick={handleNewChat} disabled={isUploading}>
+            {isUploading ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
+            {isUploading ? 'Uploading...' : 'Add'}
+          </button>
+
+          <button 
+            className={`nav-icon-btn ${location.pathname === '/settings' ? 'active' : ''}`} 
+            onClick={() => navigate('/settings')} 
+            title="Settings"
+          >
+            <Settings size={20} />
+          </button>
+
+          <button className="nav-icon-btn" onClick={onLogout} title="Logout">
+            <LogOut size={20} />
+          </button>
+        </div>
+      </nav>
+    </>
+  );
+}

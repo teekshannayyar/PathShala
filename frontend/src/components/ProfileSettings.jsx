@@ -3,11 +3,10 @@ import { GoogleLogin } from '@react-oauth/google';
 import { Eye, EyeOff, Edit2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { deleteAccount, updateProfile, changePassword, errorMessage } from '../api';
+import { MIN_PASSWORD_LENGTH, passwordProblem } from '../passwordRules';
 import './ProfileSettings.css';
 
 const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_BYTES = 72;
 
 export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
   const [displayName, setDisplayName] = useState(user?.name || '');
@@ -57,12 +56,9 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      toast.error(`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
-      return;
-    }
-    if (new TextEncoder().encode(newPassword).length > MAX_PASSWORD_BYTES) {
-      toast.error(`New password must be at most ${MAX_PASSWORD_BYTES} bytes.`);
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      toast.error(problem);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -104,8 +100,7 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
     setIsDeleting(true);
     try {
       await deleteAccount(deletePassword);
-      toast.success('Account permanently deleted.');
-      onLogout();
+      onLogout('Account permanently deleted.');
     } catch (error) {
       console.error("Delete account error:", error);
       toast.error(errorMessage(error, "Failed to delete account. Incorrect password?"));

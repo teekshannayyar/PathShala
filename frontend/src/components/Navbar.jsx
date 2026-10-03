@@ -7,7 +7,7 @@ import './Navbar.css';
 
 const MAX_UPLOAD_MB = 50;
 
-export default function Navbar({ onLogout, setActiveDocument }) {
+export default function Navbar({ onLogout, setActiveDocument, chatPath = '/chat' }) {
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef(null);
@@ -81,7 +81,7 @@ export default function Navbar({ onLogout, setActiveDocument }) {
             </button>
             <button 
               className={`nav-link ${location.pathname === '/chat' ? 'active' : ''}`}
-              onClick={() => navigate('/chat')}
+              onClick={() => navigate(chatPath)}
             >
               Chat
             </button>

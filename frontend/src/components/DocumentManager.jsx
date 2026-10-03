@@ -188,7 +188,7 @@ export default function DocumentManager({ onDocumentSelect }) {
                   <div className="folder-title" onClick={() => toggleSelectAll(folderDocs)}>
                     {allSelected ? <CheckSquare size={18} className="text-accent" /> : <Square size={18} className={someSelected ? "text-accent" : ""} />}
                     <Folder className="text-accent" size={20} />
-                    <h3>{folder}</h3>
+                    <h3 title={folder}>{folder}</h3>
                     <span className="badge">{folderDocs.length}</span>
                   </div>
                 </div>

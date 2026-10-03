@@ -17,6 +17,18 @@ import { getCurrentUser, getDocuments, SESSION_EXPIRED_EVENT } from './api';
 
 const sameDocument = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+// A message to show once after a full page load (e.g. after deleting the account).
+const FLASH_KEY = 'pathshala:flash';
+const popFlash = () => {
+  try {
+    const message = sessionStorage.getItem(FLASH_KEY);
+    sessionStorage.removeItem(FLASH_KEY);
+    return message;
+  } catch {
+    return null;
+  }
+};
+
 function NotFound({ isLoggedIn }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '12px', minHeight: '100vh', padding: '16px', textAlign: 'center', background: 'var(--bg-primary)' }}>
@@ -30,27 +42,34 @@ function NotFound({ isLoggedIn }) {
 }
 
 function App() {
-  const [activeDocument, setActiveDocument] = useState(null);
+  // Latest known copy of the document open in /chat. Which document is open
+  // is decided only by the URL; this is just its data.
+  const [documentCache, setDocumentCache] = useState(null);
+  // Where the navbar's Chat link goes: the chat the user last opened.
+  const [lastChatDocId, setLastChatDocId] = useState(null);
   const [user, setUser] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // On /chat the URL (?doc=<id>) says which document is open, so a reload
-  // keeps it. activeDocument holds the latest copy of that document.
+  // The URL (/chat?doc=<id>) is the single source of truth for the open
+  // document, so reload, back/forward and links keep it, and changing it is
+  // always a navigation (no state that can race React Router's URL update).
   const docParam = location.pathname === '/chat' ? new URLSearchParams(location.search).get('doc') : null;
   const wantedDocId = docParam && /^\d+$/.test(docParam) ? Number(docParam) : null;
-  const chatDocument = wantedDocId !== null && activeDocument?.id === wantedDocId ? activeDocument : null;
+  const chatDocument = wantedDocId !== null && documentCache?.id === wantedDocId ? documentCache : null;
 
-  const openDocument = useCallback((doc) => {
-    setActiveDocument(doc);
-    navigate(doc ? `/chat?doc=${doc.id}` : '/chat');
+  const openDocument = useCallback((doc, { replace = false } = {}) => {
+    if (doc) setDocumentCache(doc);
+    setLastChatDocId(doc ? doc.id : null);
+    navigate(doc ? `/chat?doc=${doc.id}` : '/chat', { replace });
   }, [navigate]);
 
   // Called with every fresh documents list (the chat sidebar polls): keeps
-  // the open document's status current and drops it if it was deleted.
+  // the open document's status current. If it is gone, the cache is emptied
+  // and the loader below reports it and returns to /chat.
   const handleDocumentsLoaded = useCallback((docs) => {
-    setActiveDocument(prev => {
+    setDocumentCache(prev => {
       if (!prev) return prev;
       const fresh = docs.find(d => d.id === prev.id);
       if (!fresh) return null;
@@ -62,23 +81,19 @@ function App() {
   useEffect(() => {
     const onExpired = () => {
       setUser(null);
-      setActiveDocument(null);
+      setDocumentCache(null);
+      setLastChatDocId(null);
       toast.error('Your session has expired. Please log in again.', { id: 'session-expired' });
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);
 
-  // Load the document named in the URL (reload, back/forward, shared link).
-  const activeId = activeDocument?.id;
+  // Load the document named in the URL when we don't have it yet (reload,
+  // back/forward, shared link) or it disappeared from the list.
+  const cachedId = documentCache?.id;
   useEffect(() => {
-    if (!user || location.pathname !== '/chat') return;
-    if (docParam === null) {
-      // Coming back to /chat with a document open: put it in the URL.
-      if (activeId !== undefined) navigate(`/chat?doc=${activeId}`, { replace: true });
-      return;
-    }
-    if (wantedDocId !== null && activeId === wantedDocId) return;
+    if (!user || docParam === null || cachedId === wantedDocId) return;
     let ignore = false;
     const loadWanted = async () => {
       let doc;
@@ -90,16 +105,16 @@ function App() {
       }
       if (ignore) return;
       if (doc) {
-        setActiveDocument(doc);
+        setDocumentCache(doc);
       } else {
         toast.error('That document no longer exists.', { id: 'doc-missing' });
-        setActiveDocument(null);
+        setLastChatDocId(null);
         navigate('/chat', { replace: true });
       }
     };
     loadWanted();
     return () => { ignore = true; };
-  }, [user, location.pathname, docParam, wantedDocId, activeId, navigate]);
+  }, [user, docParam, wantedDocId, cachedId, navigate]);
 
   // On mount, check if token exists to restore session
   useEffect(() => {
@@ -121,6 +136,8 @@ function App() {
     };
 
     validateSession();
+    const flash = popFlash();
+    if (flash) toast.success(flash, { id: 'flash' });
     return () => { ignore = true; };
   }, []);
 
@@ -134,16 +151,24 @@ function App() {
     navigate('/chat');
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setActiveDocument(null);
+  // A full page load to the landing page: clearing the user first would let
+  // the protected routes redirect to /login before the navigation lands.
+  // `message` (optional) is shown as a toast after the reload.
+  const handleLogout = (message) => {
     localStorage.removeItem('token');
-    navigate('/');
+    if (typeof message === 'string') {
+      try { sessionStorage.setItem(FLASH_KEY, message); } catch { /* toast is optional */ }
+    }
+    window.location.assign('/');
   };
 
   const getAuthenticatedLayout = (children) => (
     <div className="app-layout">
-      <Navbar onLogout={handleLogout} setActiveDocument={openDocument} />
+      <Navbar
+        onLogout={handleLogout}
+        setActiveDocument={openDocument}
+        chatPath={lastChatDocId !== null ? `/chat?doc=${lastChatDocId}` : '/chat'}
+      />
       <div className="app-main">
         {location.pathname === '/chat' && (
           <Sidebar 
@@ -161,7 +186,8 @@ function App() {
 
   return (
     <>
-      <Toaster position="top-right" />
+      {/* Top-center, below the 64px navbar, so toasts never cover its buttons. */}
+      <Toaster position="top-center" containerStyle={{ top: 76 }} toastOptions={{ duration: 4000 }} />
       <Routes>
         <Route 
           path="/" 

@@ -1,0 +1,50 @@
+# Render Blueprint for the PathShala API (the frontend deploys to Vercel; see
+# frontend/vercel.json). Secrets are `sync: false`: Render asks for them when
+# the Blueprint is first applied, and they never live in this file.
+services:
+  - type: web
+    name: pathshala-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Persistent disks need a paid instance. The sentence-transformers model
+    # and torch need roughly 1 GB of RAM; size the plan accordingly.
+    plan: standard
+    healthCheckPath: /health
+    disk:
+      name: pathshala-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pathshala-db
+          property: connectionString
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # Comma-separated, e.g. https://pathshala.vercel.app (no trailing slash).
+      - key: FRONTEND_URL
+        sync: false
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: CHROMA_MODE
+        value: persistent
+      - key: CHROMA_PATH
+        value: /var/data/chroma
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      # For CHROMA_MODE=http or cloud instead of the disk, set CHROMA_HOST /
+      # CHROMA_PORT / CHROMA_SSL or CHROMA_TENANT / CHROMA_DATABASE here and
+      # add CHROMA_API_KEY with `sync: false`.
+
+# Optional managed Postgres. Remove this block and set DATABASE_URL with
+# `sync: false` above to use an existing database instead.
+databases:
+  - name: pathshala-db
+    databaseName: pathshala
+    user: pathshala

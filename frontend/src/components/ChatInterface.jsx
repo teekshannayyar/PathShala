@@ -4,7 +4,7 @@ import { Send, User, Bot, Paperclip, Loader2, PanelLeftOpen } from 'lucide-react
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { askQuestion, uploadDocument, getChatHistory, generateQuiz, errorMessage } from '../api';
+import { askQuestion, uploadDocument, getChatHistory, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './ChatInterface.css';
 
@@ -15,10 +15,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  
-  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
-  const [quizData, setQuizData] = useState(null);
-  
+
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -149,7 +146,6 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
         {activeDocument && activeDocument.embedding_complete && (
           <button 
             onClick={handleGenerateQuiz}
-            disabled={isGeneratingQuiz}
             style={{
               background: 'var(--accent-glow)',
               color: 'var(--accent-primary)',
@@ -164,7 +160,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
               gap: '6px'
             }}
           >
-            {isGeneratingQuiz ? <Loader2 size={16} className="spin" /> : "📝 Test Your Knowledge"}
+            📝 Test Your Knowledge
           </button>
         )}
       </div>

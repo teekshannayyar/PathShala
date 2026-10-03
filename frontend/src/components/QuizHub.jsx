@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Target, AlertTriangle, Play, BookOpen, Clock, CheckCircle2, ChevronRight, Loader2, BookA } from 'lucide-react';
-import { getQuizzes, getWeakTopics, generateQuiz, getDocuments } from '../api';
+import { getQuizzes, getWeakTopics, generateQuiz, getDocuments, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './QuizHub.css';
 
@@ -26,8 +26,8 @@ export default function QuizHub() {
         setQuizzes(quizzesData);
         setWeakTopics(topicsData.weak_topics || []);
         
-        // Only keep documents that have finished embedding
-        const readyDocs = docsData.filter(d => d.embedding_complete);
+        // Only keep documents that finished processing successfully
+        const readyDocs = docsData.filter(d => d.processing_status === 'ready');
         setDocuments(readyDocs);
         
         // Pre-select document if navigated with ?generate=docId, but don't auto-generate
@@ -62,7 +62,7 @@ export default function QuizHub() {
       navigate(`/quizzes/take/${response.quiz_id}`);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to generate quiz", { id: 'quiz' });
+      toast.error(errorMessage(error, "Failed to generate quiz"), { id: 'quiz' });
       setIsGenerating(false);
     }
   };

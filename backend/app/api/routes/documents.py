@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, Request
 from sqlalchemy.orm import Session
+from app.api.deps import get_owned_document
 from app.models.database import get_db
 from app.models.models import Document
+from app.models.schemas import DocumentResponse
 from app.services.pdf_service import PDFService
 from app.services.upload_service import max_upload_bytes, save_pdf_upload
 from app.api.routes.auth import get_current_user
 from app.core.config import settings
+from typing import List
 import os
 
 # Allowance for multipart boundaries/headers on top of the file itself.
@@ -13,11 +16,11 @@ MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("/", response_model=List[DocumentResponse])
 def get_documents(db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
     return db.query(Document).filter(Document.owner_id == current_user).all()
 
-@router.post("/upload")
+@router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -39,7 +42,8 @@ async def upload_document(
             filename=display_name,
             file_path=stored_path,
             file_size=size_bytes,
-            owner_id=current_user
+            owner_id=current_user,
+            processing_status="processing",
         )
         db.add(db_doc)
         db.commit()
@@ -64,8 +68,9 @@ async def upload_document(
         db.commit()
 
     # Process it in the background
-    background_tasks.add_task(PDFService.process_document, db_doc.id, db)
-    
+    background_tasks.add_task(PDFService.process_document, db_doc.id)
+
+    db.refresh(db_doc)
     return db_doc
 
 @router.delete("/{document_id}")
@@ -88,8 +93,32 @@ def delete_document(document_id: int, db: Session = Depends(get_db), current_use
     db.commit()
     return {"message": "Document deleted successfully"}
 
+@router.post("/{document_id}/reprocess", response_model=DocumentResponse)
+def reprocess_document(
+    document_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user)
+):
+    """Re-run extraction and embedding, e.g. for documents uploaded before
+    original_text was stored, or after a failed run."""
+    doc = get_owned_document(db, document_id, current_user)
+
+    if doc.processing_status == "processing":
+        raise HTTPException(status_code=409, detail="Document is already processing")
+    if not doc.file_path or not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=410, detail="The original PDF is no longer available; please upload it again")
+
+    doc.processing_status = "processing"
+    doc.processing_error = None
+    doc.embedding_complete = False
+    db.commit()
+    db.refresh(doc)
+
+    background_tasks.add_task(PDFService.process_document, doc.id)
+    return doc
+
 from pydantic import BaseModel
-from typing import List
 
 class RenameRequest(BaseModel):
     filename: str
@@ -100,7 +129,7 @@ class MoveFolderRequest(BaseModel):
 class BulkDeleteRequest(BaseModel):
     document_ids: List[int]
 
-@router.put("/{document_id}/rename")
+@router.put("/{document_id}/rename", response_model=DocumentResponse)
 def rename_document(document_id: int, request: RenameRequest, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
     doc = db.query(Document).filter(Document.id == document_id, Document.owner_id == current_user).first()
     if not doc:
@@ -111,7 +140,7 @@ def rename_document(document_id: int, request: RenameRequest, db: Session = Depe
     db.refresh(doc)
     return doc
 
-@router.put("/{document_id}/folder")
+@router.put("/{document_id}/folder", response_model=DocumentResponse)
 def move_document_to_folder(document_id: int, request: MoveFolderRequest, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
     doc = db.query(Document).filter(Document.id == document_id, Document.owner_id == current_user).first()
     if not doc:

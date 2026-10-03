@@ -98,6 +98,11 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
               <div className="doc-info">
                 <span className="doc-name">{doc.filename.replace('.pdf', '')}</span>
               </div>
+              {doc.processing_status === 'failed' && (
+                <span className="doc-failed-badge" title={doc.processing_error || 'Processing failed'}>
+                  Failed
+                </span>
+              )}
               <button 
                 className="delete-doc-btn" 
                 onClick={(e) => confirmDelete(e, doc.id)}

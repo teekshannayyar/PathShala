@@ -101,6 +101,11 @@ export const bulkDeleteDocuments = async (documentIds) => {
   return response.data;
 };
 
+export const reprocessDocument = async (documentId) => {
+  const response = await api.post(`/documents/${documentId}/reprocess`);
+  return response.data;
+};
+
 export const generateQuiz = async (documentId) => {
   const response = await api.post(`/quizzes/generate/${documentId}`);
   return response.data;

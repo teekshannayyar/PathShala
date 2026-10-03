@@ -34,10 +34,9 @@ COPY . .
 # /var/data) whatever that volume's ownership is.
 EXPOSE 8000
 
-# Migrations run on every start (a no-op when up to date). --proxy-headers
-# makes request.client the client IP from X-Forwarded-For, which the per-IP
-# rate limits depend on. With the default "*" uvicorn trusts the left-most
-# X-Forwarded-For entry; if the platform's proxy appends to a client-sent
-# header rather than replacing it, set FORWARDED_ALLOW_IPS to the proxy's
-# addresses instead so clients can't pick their own rate-limit key.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-*}\""]
+# Migrations run on every start (a no-op when up to date). X-Forwarded-For
+# is trusted only from FORWARDED_ALLOW_IPS (default 127.0.0.1): with "*"
+# uvicorn would take its left-most entry, which the client controls behind a
+# proxy that appends to it. Per-IP rate limits use CLIENT_IP_HEADER instead
+# when it's set (see app/core/rate_limit.py and render.yaml).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-127.0.0.1}\""]

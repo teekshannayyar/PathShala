@@ -38,6 +38,13 @@ services:
         value: /var/data/chroma
       - key: RATE_LIMIT_ENABLED
         value: "true"
+      # Rate limits key on the client IP. Render's edge (Cloudflare) sets
+      # CF-Connecting-IP to the real client and overwrites any value the client
+      # sent, whereas X-Forwarded-For is appended to, so its first entry is
+      # client-controlled. The Dockerfile only trusts X-Forwarded-For from
+      # 127.0.0.1 (FORWARDED_ALLOW_IPS) for the same reason.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       # For CHROMA_MODE=http or cloud instead of the disk, set CHROMA_HOST /
       # CHROMA_PORT / CHROMA_SSL or CHROMA_TENANT / CHROMA_DATABASE here and
       # add CHROMA_API_KEY with `sync: false`.
@@ -48,3 +55,6 @@ databases:
   - name: pathshala-db
     databaseName: pathshala
     user: pathshala
+    # A paid plan: Render's free Postgres expires after 30 days and is then
+    # deleted. basic-256mb is the smallest paid instance; resize as needed.
+    plan: basic-256mb

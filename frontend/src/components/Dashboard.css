@@ -284,31 +284,6 @@
   color: var(--text-tertiary);
 }
 
-.learning-tip {
-  padding: 16px;
-  background: var(--bg-primary);
-  border-radius: var(--radius-md);
-  border: 1px dashed var(--border-highlight);
-}
-
-.tip-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent-primary);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-.learning-tip p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
 .empty-state {
   display: flex;
   flex-direction: column;

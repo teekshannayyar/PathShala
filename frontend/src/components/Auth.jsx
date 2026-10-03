@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { BookOpen, Check, Eye, EyeOff, MessageSquare, Zap, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BookOpen, Check, Eye, EyeOff, MessageSquare, ListChecks, Target } from 'lucide-react';
 import { login, register, googleLogin, errorMessage } from '../api';
 import { passwordChecks, passwordProblem } from '../passwordRules';
 import './Auth.css';
@@ -56,41 +57,31 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
-      setError(errorMessage(err, 'Login failed. Please make sure the backend is running.'));
+      setError(errorMessage(err, 'Google sign-in failed. Please try again.'));
     }
   };
 
   return (
     <div className="auth-container">
       <div className="auth-left">
-        <div className="auth-left-bg-shapes">
-          <div className="auth-shape shape-1"></div>
-          <div className="auth-shape shape-2"></div>
-        </div>
-        
         <div className="auth-left-content">
           <div className="auth-brand">
             <BookOpen size={48} className="auth-brand-icon" />
             <h1>PathShala</h1>
           </div>
           
-          <div className="auth-quote">
-            "The beautiful thing about learning is that no one can take it away from you."
-            <span>- B.B. King</span>
-          </div>
-
           <div className="auth-features">
             <div className="auth-feature-item">
               <div className="feature-icon-box"><MessageSquare size={18} /></div>
-              <span>Chat instantly with any textbook or PDF</span>
+              <span>Ask questions about the PDFs you upload</span>
             </div>
             <div className="auth-feature-item">
-              <div className="feature-icon-box"><Zap size={18} /></div>
-              <span>Lightning-fast RAG retrieval and citations</span>
+              <div className="feature-icon-box"><ListChecks size={18} /></div>
+              <span>Generate multiple-choice quizzes of up to 10 questions from a document</span>
             </div>
             <div className="auth-feature-item">
-              <div className="feature-icon-box"><Shield size={18} /></div>
-              <span>100% private, isolated document storage</span>
+              <div className="feature-icon-box"><Target size={18} /></div>
+              <span>See your weakest quiz topics and your study streak</span>
             </div>
           </div>
         </div>
@@ -204,6 +195,11 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
             </button>
           </div>
         </div>
+
+        <nav className="auth-legal" aria-label="Legal">
+          <Link to="/privacy">Privacy Policy</Link>
+          <Link to="/terms">Terms and Conditions</Link>
+        </nav>
       </div>
     </div>
   );

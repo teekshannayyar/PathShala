@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, MessageSquare, Zap, Clock, ChevronRight, UploadCloud, Sparkles, TrendingUp } from 'lucide-react';
+import { FileText, MessageSquare, Zap, ChevronRight, UploadCloud, TrendingUp } from 'lucide-react';
 import { getDocuments, getUserStats } from '../api';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
@@ -27,7 +27,7 @@ export default function Dashboard({ onDocumentSelect }) {
   return (
     <div className="dashboard-container animate-fade-in">
       <div className="dashboard-header">
-        <h1>Welcome back! 👋</h1>
+        <h1>Welcome back</h1>
         <p>Here's a summary of your recent study materials and activity.</p>
       </div>
 
@@ -103,7 +103,7 @@ export default function Dashboard({ onDocumentSelect }) {
               <div className="empty-state glass">
                 <UploadCloud size={48} className="empty-icon" />
                 <h4>No documents yet</h4>
-                <p>Upload a PDF to start asking questions and generating insights.</p>
+                <p>Upload a PDF to start asking questions about it and generating quizzes from it.</p>
                 <button className="upload-prompt-btn" onClick={handleNewUploadClick}>
                   Upload PDF
                 </button>
@@ -117,15 +117,14 @@ export default function Dashboard({ onDocumentSelect }) {
           <div className="dashboard-panel glass quick-start-panel">
             <div className="panel-header">
               <h3>Quick Start</h3>
-              <Sparkles size={16} className="panel-icon accent" />
             </div>
             
             <div className="quick-actions">
               <button className="action-btn" onClick={handleNewUploadClick}>
                 <div className="action-icon"><UploadCloud size={18} /></div>
                 <div className="action-text">
-                  <span className="action-title">Analyze new PDF</span>
-                  <span className="action-desc">Upload and extract insights</span>
+                  <span className="action-title">Upload a PDF</span>
+                  <span className="action-desc">Add a document to chat with and quiz on</span>
                 </div>
               </button>
 
@@ -138,13 +137,6 @@ export default function Dashboard({ onDocumentSelect }) {
                   </div>
                 </button>
               )}
-            </div>
-            
-            <div className="learning-tip">
-              <div className="tip-header">
-                <Clock size={14} /> <span>Pro Tip</span>
-              </div>
-              <p>Ask PathShala to "summarize the key points" of any document to quickly grasp the core concepts.</p>
             </div>
           </div>
         </div>

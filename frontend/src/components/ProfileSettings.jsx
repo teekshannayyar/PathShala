@@ -120,7 +120,7 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
           {/* Profile Section */}
           <section className="settings-section">
             <h3>Profile</h3>
-            <p className="user-email">{user?.email || 'user@example.com'}</p>
+            <p className="user-email">{user?.email}</p>
             
             <form onSubmit={handleSaveProfile} className="settings-form">
               <div className="form-group">

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, User, Bot, Paperclip, Loader2 } from 'lucide-react';
+import { Send, User, Bot, Paperclip, Loader2, ListChecks } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { askQuestion, uploadDocument, getChatHistory, errorMessage, MAX_QUESTION_CHARS } from '../api';
@@ -29,7 +29,7 @@ const rehypeLineBreaks = () => (tree) => {
 const welcomeMessage = (doc) => {
   let content;
   if (doc.processing_status === 'ready') {
-    content = 'Hi there! I have analyzed this document. What would you like to know?';
+    content = 'This document is ready. Ask a question and I will answer from its text.';
   } else if (doc.processing_status === 'failed') {
     content = `I couldn't process this document${doc.processing_error ? `: ${doc.processing_error}` : '.'} Try reprocessing it from Documents, or upload it again.`;
   } else {
@@ -136,7 +136,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       addReply(sentFor, {
         id: Date.now().toString(),
         role: 'assistant',
-        content: "Sorry, I encountered an error trying to answer that. Make sure the backend is running.",
+        content: "Sorry, something went wrong while answering that. Please try again.",
         sources: []
       });
     } finally {
@@ -208,7 +208,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
               gap: '6px'
             }}
           >
-            📝 Test Your Knowledge
+            <ListChecks size={16} /> Test Your Knowledge
           </button>
         )}
       </div>

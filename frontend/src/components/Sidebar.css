@@ -127,7 +127,7 @@
   margin-left: auto;
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
   color: #ef4444;
@@ -161,14 +161,14 @@
 .user-avatar {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   border: 2px solid var(--accent-glow);
 }
 
 .user-avatar-placeholder {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   background: var(--accent-primary);
   color: white;
   display: flex;

@@ -58,7 +58,7 @@ export default function QuizHub() {
     if (!docId) return toast.error("Please select a document first");
 
     setIsGenerating(true);
-    toast.loading("AI is generating a new quiz...", { id: 'quiz' });
+    toast.loading("Generating a quiz...", { id: 'quiz' });
     try {
       const response = await generateQuiz(docId);
       toast.success("Quiz generated successfully!", { id: 'quiz' });
@@ -75,7 +75,7 @@ export default function QuizHub() {
     return (
       <div className="quiz-hub-container centered">
         <Loader2 size={48} className="spin text-accent" />
-        <p>Loading Quiz Dashboard...</p>
+        <p>Loading quizzes...</p>
       </div>
     );
   }
@@ -84,8 +84,8 @@ export default function QuizHub() {
     <div className="quiz-hub-container animate-fade-in">
       <div className="quiz-header">
         <div>
-          <h1>Knowledge Hub</h1>
-          <p>Test your retention, track your progress, and master your weak spots.</p>
+          <h1>Quizzes</h1>
+          <p>Generate a quiz of up to 10 questions from a document, take it, and see which topics you score lowest on.</p>
         </div>
         
         <div className="quiz-generate-card glass">
@@ -123,7 +123,7 @@ export default function QuizHub() {
               {weakTopics.length === 0 ? (
                 <div className="empty-topics">
                   <CheckCircle2 size={32} className="success-icon" />
-                  <p>You have no weak topics right now. Keep up the great work!</p>
+                  <p>No topics below 60% accuracy. Topics show up here after you take quizzes.</p>
                 </div>
               ) : (
                 weakTopics.map((topic, idx) => (

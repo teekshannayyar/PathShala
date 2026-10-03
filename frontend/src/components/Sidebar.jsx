@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageSquare, Loader2, Trash2, PlusCircle } from 'lucide-react';
-import { getDocuments, deleteDocument } from '../api';
-import { useNavigate } from 'react-router-dom';
+import { getDocuments, deleteDocument, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './Sidebar.css';
 
-export default function Sidebar({ activeDocument, setActiveDocument, user, onLogout }) {
+export default function Sidebar({ activeDocument, setActiveDocument, onDocumentsLoaded, user, onLogout }) {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [dontAskAgain, setDontAskAgain] = useState(false);
-  const navigate = useNavigate();
 
   const executeDeleteLogic = async (docId) => {
     try {
@@ -21,8 +19,8 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
         setActiveDocument(null);
       }
       toast.success("Chat deleted successfully");
-    } catch {
-      toast.error("Failed to delete chat");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete chat"));
     }
   };
 
@@ -57,7 +55,10 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
     const loadDocuments = async () => {
       try {
         const docs = await getDocuments();
-        if (!ignore) setDocuments(docs);
+        if (!ignore) {
+          setDocuments(docs);
+          onDocumentsLoaded?.(docs);
+        }
       } catch (error) {
         console.error("Failed to load documents", error);
       } finally {
@@ -70,11 +71,12 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
       ignore = true;
       clearInterval(interval);
     };
-  }, [activeDocument]);
+    // Reload when another document is opened, e.g. right after an upload.
+  }, [activeDocument?.id, onDocumentsLoaded]);
 
+  // setActiveDocument(null) also navigates to a fresh /chat.
   const handleNewChat = () => {
     setActiveDocument(null);
-    navigate('/chat');
   };
 
   return (

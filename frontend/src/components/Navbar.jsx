@@ -33,9 +33,9 @@ export default function Navbar({ onLogout, setActiveDocument }) {
     toast.loading("Uploading and processing PDF...", { id: 'upload' });
     try {
       const newDoc = await uploadDocument(file);
+      // Opens the new document in /chat.
       setActiveDocument(newDoc);
       toast.success("PDF uploaded successfully!", { id: 'upload' });
-      navigate('/chat');
     } catch (error) {
       console.error("Upload failed", error);
       toast.error(errorMessage(error, "Failed to upload document"), { id: 'upload' });

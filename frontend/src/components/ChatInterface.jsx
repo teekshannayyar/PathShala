@@ -3,15 +3,45 @@ import { useNavigate } from 'react-router-dom';
 import { Send, User, Bot, Paperclip, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import { askQuestion, uploadDocument, getChatHistory, errorMessage } from '../api';
+import { askQuestion, uploadDocument, getChatHistory, errorMessage, MAX_QUESTION_CHARS } from '../api';
 import toast from 'react-hot-toast';
 import './ChatInterface.css';
 
 const MAX_UPLOAD_MB = 50;
 
+// Raw HTML in answers is never rendered (no rehype-raw). The one tag LLMs
+// commonly emit is <br> (e.g. inside table cells), so turn exactly that raw
+// node into a real line break and drop nothing else into the DOM.
+const BR_TAG = /^<br\s*\/?>$/i;
+const rehypeLineBreaks = () => (tree) => {
+  const walk = (node) => {
+    if (!node.children) return;
+    node.children = node.children.map(child =>
+      child.type === 'raw' && BR_TAG.test(child.value.trim())
+        ? { type: 'element', tagName: 'br', properties: {}, children: [] }
+        : child
+    );
+    node.children.forEach(walk);
+  };
+  walk(tree);
+};
+
+const welcomeMessage = (doc) => {
+  let content;
+  if (doc.processing_status === 'ready') {
+    content = 'Hi there! I have analyzed this document. What would you like to know?';
+  } else if (doc.processing_status === 'failed') {
+    content = `I couldn't process this document${doc.processing_error ? `: ${doc.processing_error}` : '.'} Try reprocessing it from Documents, or upload it again.`;
+  } else {
+    content = "I'm still processing this document. You can ask questions as soon as it's ready.";
+  }
+  return { id: `welcome-${doc.id}-${doc.processing_status}`, role: 'assistant', content, sources: [] };
+};
+
 export default function ChatInterface({ activeDocument, setActiveDocument }) {
-  const [messages, setMessages] = useState([]);
+  // Messages are tagged with the document they belong to (null for a chat
+  // without a document), so a late reply never lands in another chat.
+  const [chat, setChat] = useState({ docId: null, messages: [] });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -21,38 +51,50 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
 
   const navigate = useNavigate();
 
+  const docId = activeDocument?.id ?? null;
+  const isReady = !activeDocument || activeDocument.processing_status === 'ready';
+  const ownMessages = chat.docId === docId ? chat.messages : [];
+  const messages = activeDocument && ownMessages.length === 0 ? [welcomeMessage(activeDocument)] : ownMessages;
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages.length]);
 
-  // Fetch chat history or reset when document changes
+  // Fetch chat history when the open document changes (not on status refreshes).
   useEffect(() => {
+    if (docId === null) return;
+    let ignore = false;
     const fetchHistory = async () => {
-      if (activeDocument) {
-        try {
-          const history = await getChatHistory(activeDocument.id);
-          if (history.length > 0) {
-            setMessages(history);
-          } else {
-            setMessages([
-              {
-                id: 'welcome',
-                role: 'assistant',
-                content: `Hi there! I have analyzed this document. What would you like to know?`,
-                sources: []
-              }
-            ]);
-          }
-        } catch (error) {
+      try {
+        const history = await getChatHistory(docId);
+        if (!ignore) setChat({ docId, messages: history });
+      } catch (error) {
+        if (ignore) return;
+        if (error?.response?.status === 404) {
+          toast.error('That document no longer exists.', { id: 'doc-missing' });
+          setActiveDocument(null);
+        } else {
           console.error("Failed to load history", error);
         }
-      } else {
-        setMessages([]);
       }
     };
     fetchHistory();
-  }, [activeDocument]);
+    return () => { ignore = true; };
+  }, [docId, setActiveDocument]);
+
+  // The question starts this document's thread if its history hasn't loaded;
+  // a reply is dropped if the user has since moved to another chat.
+  const addQuestion = (forDocId, message) => {
+    setChat(prev => prev.docId === forDocId
+      ? { docId: forDocId, messages: [...prev.messages, message] }
+      : { docId: forDocId, messages: [message] });
+  };
+  const addReply = (forDocId, message) => {
+    setChat(prev => prev.docId === forDocId
+      ? { docId: forDocId, messages: [...prev.messages, message] }
+      : prev);
+  };
 
   const handleGenerateQuiz = () => {
     if (!activeDocument) return;
@@ -61,36 +103,42 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
     const userQuestion = input.trim();
+    if (!userQuestion || isLoading || !isReady) return;
+    if (userQuestion.length > MAX_QUESTION_CHARS) {
+      toast.error(`Questions can be at most ${MAX_QUESTION_CHARS} characters.`);
+      return;
+    }
+
+    const sentFor = docId;
     setInput('');
     
     // Add user message to UI
-    const newUserMsg = { id: Date.now().toString(), role: 'user', content: userQuestion };
-    setMessages(prev => [...prev, newUserMsg]);
+    addQuestion(sentFor, { id: Date.now().toString(), role: 'user', content: userQuestion });
     setIsLoading(true);
 
     try {
-      const response = await askQuestion(userQuestion, activeDocument?.id);
-      
-      const newBotMsg = {
+      const response = await askQuestion(userQuestion, sentFor ?? undefined);
+      addReply(sentFor, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.answer,
         sources: response.sources
-      };
-      
-      setMessages(prev => [...prev, newBotMsg]);
+      });
     } catch (error) {
       console.error("Chat error", error);
+      if (error?.response?.status === 404 && sentFor !== null) {
+        toast.error('That document no longer exists.', { id: 'doc-missing' });
+        setActiveDocument(null);
+        return;
+      }
       toast.error(errorMessage(error, "Network error: Failed to get response from AI"));
-      setMessages(prev => [...prev, {
+      addReply(sentFor, {
         id: Date.now().toString(),
         role: 'assistant',
         content: "Sorry, I encountered an error trying to answer that. Make sure the backend is running.",
         sources: []
-      }]);
+      });
     } finally {
       setIsLoading(false);
     }
@@ -180,7 +228,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
                 <div className="message-text markdown-body">
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
-                    rehypePlugins={[rehypeRaw]}
+                    rehypePlugins={[rehypeLineBreaks]}
                   >
                     {msg.content}
                   </ReactMarkdown>
@@ -225,10 +273,16 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={activeDocument ? `Ask a question about ${activeDocument.filename.replace('.pdf', '')}...` : "Message PathShala..."}
-            disabled={isLoading}
+            placeholder={
+              !activeDocument ? "Message PathShala..."
+                : activeDocument.processing_status === 'failed' ? "This document couldn't be processed"
+                : !isReady ? "Still processing this document..."
+                : `Ask a question about ${activeDocument.filename.replace('.pdf', '')}...`
+            }
+            maxLength={MAX_QUESTION_CHARS}
+            disabled={isLoading || !isReady}
           />
-          <button type="submit" className="send-btn" disabled={isLoading || !input.trim()}>
+          <button type="submit" className="send-btn" disabled={isLoading || !isReady || !input.trim()}>
             <Send size={18} />
           </button>
         </form>

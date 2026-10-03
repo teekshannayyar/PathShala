@@ -14,6 +14,25 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Fired when the server rejects our token (expired, invalid, or the account
+// is gone). App listens for it, drops the user and lands on /login.
+export const SESSION_EXPIRED_EVENT = 'pathshala:session-expired';
+
+// Credential checks answer 401 for a wrong password; that is not an expired session.
+const CREDENTIAL_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/google'];
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const url = error?.config?.url || '';
+    if (error?.response?.status === 401 && !CREDENTIAL_ENDPOINTS.includes(url)) {
+      localStorage.removeItem('token');
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const login = async ({ email, password }) => {
   const response = await api.post('/auth/login', { email, password });
   return response.data;
@@ -72,6 +91,19 @@ export const deleteAccount = async (password) => {
 
 export const getCurrentUser = async () => {
   const response = await api.get('/auth/me');
+  return response.data;
+};
+
+export const updateProfile = async (name) => {
+  const response = await api.put('/auth/me', { name });
+  return response.data;
+};
+
+export const changePassword = async ({ currentPassword, newPassword }) => {
+  const response = await api.put('/auth/me/password', {
+    current_password: currentPassword || null,
+    new_password: newPassword,
+  });
   return response.data;
 };
 
@@ -134,5 +166,9 @@ export const getWeakTopics = async () => {
 // FastAPI returns a string detail for HTTPException and a list for validation errors.
 export const errorMessage = (error, fallback) => {
   const detail = error?.response?.data?.detail;
-  return typeof detail === 'string' && detail ? detail : fallback;
+  if (typeof detail === 'string' && detail) return detail;
+  if (Array.isArray(detail) && typeof detail[0]?.msg === 'string') return detail[0].msg;
+  return fallback;
 };
+
+export const MAX_QUESTION_CHARS = 4000;

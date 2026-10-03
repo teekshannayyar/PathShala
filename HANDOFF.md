@@ -1,4 +1,4 @@
-# PathShala — Developer Handoff
+# PathShala Developer Handoff
 
 > **Last updated:** October 3, 2026
 > **Status:** working MVP; deployment config ready, not deployed
@@ -17,7 +17,41 @@ A PDF-based AI study assistant (a RAG app). Users upload study PDFs, then:
 - track study streaks in their own timezone
 - organise documents into folders, rename them, bulk-delete them, and reprocess failed ones
 
-**Design theme:** glassmorphism, warm white background (`#fffdfa`), orange accent (`#ea580c`), Inter font. Works on phone widths.
+**Design theme:** warm white background (`#fffdfa`), orange accent (`#ea580c`), Inter font. Works on phone widths. Follow the design rules below.
+
+---
+
+## Design rules
+
+The project owner's rules for the website. Every change to the frontend must follow them:
+
+- Never use purple gradients.
+- Never use pill-shaped buttons.
+- No fake reviews.
+- No fake metrics.
+- No vague hero text.
+- No emoji icons.
+- No em dashes.
+- No over-the-top scroll animation.
+- Never use AI-slop photos.
+- Never use AI-slop copy.
+- No cursor animation.
+- No fake customer counters.
+- Make no mistakes and follow precisely.
+
+In practice: buttons, badges and inputs use small corner radii (`--radius-sm`, 8px, or less); only icon-only circular buttons and avatars are round. Icons come from `lucide-react`. Every number shown in the app is computed from the user's own data. Animations are short (about 0.2 s) fades or slides for pages, menus and modals; nothing reacts to scrolling or follows the cursor. Copy says plainly what the app does.
+
+---
+
+## Pre-launch checklist
+
+Do not launch until every item is done:
+
+- [ ] Connect a custom domain.
+- [ ] Add a favicon. Done in code (`frontend/public/favicon.svg`, an orange "P" linked from `frontend/index.html`); confirm it shows on the custom domain.
+- [ ] Remove any "Made with AI" tag. Checked on October 3, 2026 in `frontend/src`, `frontend/index.html`, `frontend/public` and the rest of the repository: none was found. Check the live site again after deploying.
+- [ ] Finalize the Privacy Policy page (`/privacy`, `frontend/src/components/PrivacyPolicy.jsx`). It is a draft: fill in every placeholder in square brackets (operator name, contact email, effective date, hosting providers, logs, backups and the other marked items) and have it reviewed.
+- [ ] Finalize the Terms and Conditions page (`/terms`, `frontend/src/components/TermsPage.jsx`). It is also a draft with placeholders in square brackets to fill in and review.
 
 ---
 
@@ -43,7 +77,10 @@ PathShala/
 │           ├── DocumentManager.jsx/.css  # folders, rename, delete, bulk delete, reprocess
 │           ├── QuizHub.jsx/.css          # generate quizzes, quiz list, weak topics
 │           ├── QuizTaker.jsx/.css        # take a quiz, results with explanations
-│           └── ProfileSettings.jsx/.css  # name, password, delete account
+│           ├── ProfileSettings.jsx/.css  # name, password, delete account
+│           ├── LegalPage.jsx/.css        # shared layout and draft note for the legal pages
+│           ├── PrivacyPolicy.jsx         # /privacy (draft)
+│           └── TermsPage.jsx             # /terms (draft)
 │
 └── backend/                       # FastAPI (uvicorn on port 8000)
     ├── Dockerfile, .dockerignore
@@ -167,6 +204,8 @@ Every foreign key is `ON DELETE CASCADE`.
 | `/quizzes` | logged in | Quiz hub; `?generate=<docId>` preselects a ready document (never auto-generates) |
 | `/quizzes/take/:id` | logged in | Take a quiz, then see results |
 | `/settings` | logged in | Profile name, password, delete account |
+| `/privacy` | any | Privacy Policy (draft with placeholders) |
+| `/terms` | any | Terms and Conditions (draft with placeholders) |
 | `*` | any | Not found page |
 
 Logged-out users on a protected path go to `/login`. The JWT lives in `localStorage`; on load the app calls `/api/auth/me`, and any 401 outside the login/register/Google calls ends the session and shows a toast.
@@ -257,6 +296,7 @@ Config only; nothing has been deployed.
 - Per-IP rate limits, multi-origin CORS, four Chroma modes
 - Alembic migrations, 133 offline tests, CI, Docker/Render/Vercel config
 - Phone-width layout, 404 page, toasts and confirmation modals
+- PathShala favicon and meta description; public Privacy Policy and Terms and Conditions pages (drafts, see the pre-launch checklist)
 
 ---
 

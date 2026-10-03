@@ -27,7 +27,7 @@ export default function Dashboard({ onDocumentSelect }) {
   return (
     <div className="dashboard-container animate-fade-in">
       <div className="dashboard-header">
-        <h1>Welcome back! 👋</h1>
+        <h1>Welcome back</h1>
         <p>Here's a summary of your recent study materials and activity.</p>
       </div>
 
@@ -103,7 +103,7 @@ export default function Dashboard({ onDocumentSelect }) {
               <div className="empty-state glass">
                 <UploadCloud size={48} className="empty-icon" />
                 <h4>No documents yet</h4>
-                <p>Upload a PDF to start asking questions and generating insights.</p>
+                <p>Upload a PDF to start asking questions about it and generating quizzes from it.</p>
                 <button className="upload-prompt-btn" onClick={handleNewUploadClick}>
                   Upload PDF
                 </button>
@@ -124,8 +124,8 @@ export default function Dashboard({ onDocumentSelect }) {
               <button className="action-btn" onClick={handleNewUploadClick}>
                 <div className="action-icon"><UploadCloud size={18} /></div>
                 <div className="action-text">
-                  <span className="action-title">Analyze new PDF</span>
-                  <span className="action-desc">Upload and extract insights</span>
+                  <span className="action-title">Upload a PDF</span>
+                  <span className="action-desc">Add a document to chat with and quiz on</span>
                 </div>
               </button>
 

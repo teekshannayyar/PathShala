@@ -12,6 +12,8 @@ import ProfileSettings from './components/ProfileSettings';
 import QuizHub from './components/QuizHub';
 import QuizTaker from './components/QuizTaker';
 import DocumentManager from './components/DocumentManager';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsPage from './components/TermsPage';
 
 import { getCurrentUser, getDocuments, SESSION_EXPIRED_EVENT } from './api';
 
@@ -226,6 +228,8 @@ function App() {
             ) : <Navigate to="/login" />
           } 
         />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<NotFound isLoggedIn={Boolean(user)} />} />
       </Routes>
     </>

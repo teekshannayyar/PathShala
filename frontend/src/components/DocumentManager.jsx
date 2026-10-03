@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getDocuments, renameDocument, moveDocumentToFolder, bulkDeleteDocuments, deleteDocument, reprocessDocument, errorMessage } from '../api';
-import { Folder, FileText, MoreVertical, Edit2, Trash2, FolderPlus, Loader2, CheckSquare, Square, FolderInput, RefreshCw } from 'lucide-react';
+import { Folder, FileText, Edit2, Trash2, Loader2, CheckSquare, Square, FolderInput, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import './DocumentManager.css';
@@ -16,20 +16,21 @@ export default function DocumentManager({ onDocumentSelect }) {
   const [newFolderName, setNewFolderName] = useState("");
   const navigate = useNavigate();
 
-  const loadDocs = async () => {
-    try {
-      setIsLoading(true);
-      const docs = await getDocuments();
-      setDocuments(docs);
-    } catch (err) {
-      toast.error("Failed to load documents");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    // State is only set after the await, and not at all once unmounted.
+    let ignore = false;
+    const loadDocs = async () => {
+      try {
+        const docs = await getDocuments();
+        if (!ignore) setDocuments(docs);
+      } catch {
+        if (!ignore) toast.error("Failed to load documents");
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    };
     loadDocs();
+    return () => { ignore = true; };
   }, []);
 
   // While any document is processing, poll quietly so its status updates.
@@ -79,7 +80,9 @@ export default function DocumentManager({ onDocumentSelect }) {
       await promise;
       setDocuments(documents.filter(d => !selectedIds.has(d.id)));
       setSelectedIds(new Set());
-    } catch (e) {}
+    } catch {
+      // toast.promise above already reported the failure.
+    }
   };
 
   const handleRename = async (id, currentName) => {
@@ -91,7 +94,7 @@ export default function DocumentManager({ onDocumentSelect }) {
       await renameDocument(id, editName);
       setDocuments(documents.map(d => d.id === id ? { ...d, filename: editName } : d));
       toast.success("Renamed successfully");
-    } catch (err) {
+    } catch {
       toast.error("Failed to rename");
     } finally {
       setEditingId(null);
@@ -104,7 +107,7 @@ export default function DocumentManager({ onDocumentSelect }) {
       await moveDocumentToFolder(id, folder);
       setDocuments(documents.map(d => d.id === id ? { ...d, folder } : d));
       toast.success(`Moved to ${folder}`);
-    } catch (err) {
+    } catch {
       toast.error("Failed to move document");
     } finally {
       setMovingId(null);
@@ -118,7 +121,7 @@ export default function DocumentManager({ onDocumentSelect }) {
       await deleteDocument(id);
       setDocuments(documents.filter(d => d.id !== id));
       toast.success("Deleted successfully");
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete");
     }
   };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { BookOpen, Check, Eye, EyeOff, MessageSquare, Zap, Shield } from 'lucide-react';
 import { login, register, googleLogin } from '../api';

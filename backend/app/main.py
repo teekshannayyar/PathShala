@@ -1,11 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.models.database import engine, Base
 from app.api.routes import documents, chat, auth, quizzes
 
-# Create database tables automatically
-Base.metadata.create_all(bind=engine)
+# The schema is managed by Alembic (`alembic upgrade head`); startup never
+# creates or alters tables.
 
 app = FastAPI(title="PathShala API", version="1.0.0")
 

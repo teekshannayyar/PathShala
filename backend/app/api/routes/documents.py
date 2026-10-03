@@ -4,6 +4,7 @@ from app.api.deps import get_owned_document
 from app.models.database import get_db
 from app.models.models import Document
 from app.models.schemas import DocumentResponse
+from app.services.embedding_service import EmbeddingService, get_embedding_service
 from app.services.pdf_service import PDFService
 from app.services.upload_service import max_upload_bytes, save_pdf_upload
 from app.api.routes.auth import get_current_user
@@ -74,9 +75,12 @@ async def upload_document(
     return db_doc
 
 @router.delete("/{document_id}")
-def delete_document(document_id: int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
-    from app.services.embedding_service import embedding_service
-    
+def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
     doc = db.query(Document).filter(Document.id == document_id, Document.owner_id == current_user).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -152,9 +156,12 @@ def move_document_to_folder(document_id: int, request: MoveFolderRequest, db: Se
     return doc
 
 @router.post("/bulk-delete")
-def bulk_delete_documents(request: BulkDeleteRequest, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
-    from app.services.embedding_service import embedding_service
-    
+def bulk_delete_documents(
+    request: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
     docs = db.query(Document).filter(Document.id.in_(request.document_ids), Document.owner_id == current_user).all()
     
     deleted_ids = []

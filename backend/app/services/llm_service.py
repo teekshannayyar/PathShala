@@ -1,8 +1,7 @@
+import functools
 import json
 import logging
-from typing import List, Dict
-
-from groq import Groq
+from typing import Any, List, Dict, Optional
 
 from app.core.config import settings
 from app.services.quiz_parser import QUIZ_NUM_QUESTIONS, QuizFormatError, parse_quiz_payload
@@ -12,10 +11,14 @@ logger = logging.getLogger(__name__)
 QUIZ_MAX_INPUT_CHARS = 15000
 
 class LLMService:
-    def __init__(self):
-        # Connect to Groq using the API key from .env
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
-        self.model = settings.GROQ_MODEL
+    def __init__(self, client: Optional[Any] = None, model: Optional[str] = None):
+        # Tests inject a fake client; only build a real Groq client otherwise.
+        if client is None:
+            from groq import Groq
+
+            client = Groq(api_key=settings.GROQ_API_KEY)
+        self.client = client
+        self.model = model or settings.GROQ_MODEL
 
     def generate_response(self, prompt: str, context_chunks: List[Dict] = None, history: List[Dict] = None) -> str:
         """Takes a question and relevant context, and asks Groq for an answer."""
@@ -111,5 +114,7 @@ class LLMService:
             logger.warning("Quiz output invalid after retry: %s", e)
             raise QuizFormatError(f"Quiz generation failed after retry: {e}") from e
 
-# Create a single instance
-llm_service = LLMService()
+@functools.lru_cache(maxsize=1)
+def get_llm_service() -> LLMService:
+    """The app-wide service, created on first use rather than at import."""
+    return LLMService()

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageSquare, Loader2, Trash2, PlusCircle } from 'lucide-react';
 import { getDocuments, deleteDocument } from '../api';
@@ -13,17 +13,6 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const navigate = useNavigate();
 
-  const loadDocuments = async () => {
-    try {
-      const docs = await getDocuments();
-      setDocuments(docs);
-    } catch (error) {
-      console.error("Failed to load documents", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const executeDeleteLogic = async (docId) => {
     try {
       await deleteDocument(docId);
@@ -32,7 +21,7 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
         setActiveDocument(null);
       }
       toast.success("Chat deleted successfully");
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete chat");
     }
   };
@@ -62,9 +51,25 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
   };
 
   useEffect(() => {
+    // Load now, then poll every 5 s so processing status updates on its own.
+    // State is only set after the await, and not at all once unmounted.
+    let ignore = false;
+    const loadDocuments = async () => {
+      try {
+        const docs = await getDocuments();
+        if (!ignore) setDocuments(docs);
+      } catch (error) {
+        console.error("Failed to load documents", error);
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    };
     loadDocuments();
     const interval = setInterval(loadDocuments, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      ignore = true;
+      clearInterval(interval);
+    };
   }, [activeDocument]);
 
   const handleNewChat = () => {

@@ -10,6 +10,7 @@ import datetime
 from app.models.database import get_db
 from app.models.models import User
 from app.core.config import settings
+from app.services.embedding_service import EmbeddingService, get_embedding_service
 
 router = APIRouter()
 
@@ -142,7 +143,12 @@ def get_current_user_profile(authorization: str = Header(None), db: Session = De
     return {"id": user.id, "email": user.email, "name": user.name, "picture": user.picture, "tier": getattr(user, "tier", "free")}
 
 @router.delete("/me")
-def delete_account(request: DeleteAccountRequest, authorization: str = Header(None), db: Session = Depends(get_db)):
+def delete_account(
+    request: DeleteAccountRequest,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
     user_id = get_current_user(authorization, db)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -155,7 +161,6 @@ def delete_account(request: DeleteAccountRequest, authorization: str = Header(No
     
     # Remove the user's uploaded files and vectors; the DB rows cascade.
     from app.models.models import Document
-    from app.services.embedding_service import embedding_service
     import os
     for doc in db.query(Document).filter(Document.owner_id == user_id).all():
         if doc.file_path and os.path.exists(doc.file_path):

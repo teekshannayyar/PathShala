@@ -10,7 +10,7 @@ from app.api.deps import get_owned_document
 from app.models.database import get_db
 from app.models.models import Quiz, Question, QuizAttempt, QuestionAttempt
 from app.api.routes.auth import get_current_user
-from app.services.llm_service import llm_service
+from app.services.llm_service import LLMService, get_llm_service
 from app.services.quiz_parser import QuizFormatError
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,12 @@ class SubmitQuizRequest(BaseModel):
     answers: List[SubmitAnswerRequest]
 
 @router.post("/generate/{document_id}", response_model=QuizGenerationResponse)
-def generate_and_save_quiz(document_id: int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
+def generate_and_save_quiz(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user),
+    llm_service: LLMService = Depends(get_llm_service),
+):
     doc = get_owned_document(db, document_id, current_user)
 
     if doc.processing_status == "processing":

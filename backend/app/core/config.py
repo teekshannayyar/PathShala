@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -13,5 +15,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     FRONTEND_URL: str = "http://localhost:5173"
     GOOGLE_CLIENT_ID: str
+    # "fake" swaps the sentence-transformers model for a deterministic hash
+    # embedder, so the app and tests run with no model download or network.
+    EMBEDDING_BACKEND: Literal["sentence-transformers", "fake"] = "sentence-transformers"
 
 settings = Settings()

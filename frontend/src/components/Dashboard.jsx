@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, FileText, MessageSquare, Zap, Clock, ChevronRight, UploadCloud, Sparkles, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, MessageSquare, Zap, Clock, ChevronRight, UploadCloud, Sparkles, TrendingUp } from 'lucide-react';
 import { getDocuments, getUserStats } from '../api';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';

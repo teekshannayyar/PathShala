@@ -13,3 +13,4 @@ bcrypt>=4.1,<6.0
 google-auth>=2.30,<3.0
 requests>=2.32,<3.0            # transport for google.auth
 slowapi>=0.1.9,<0.2            # kept; applied in step 7
+alembic>=1.13,<2

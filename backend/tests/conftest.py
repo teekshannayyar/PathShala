@@ -49,6 +49,7 @@ os.environ.update(
         # test_rate_limit.py switches the limiter on for its own tests.
         "RATE_LIMIT_ENABLED": "false",
         "RATE_LIMIT_STORAGE_URI": "",
+        "CLIENT_IP_HEADER": "",
     }
 )
 

@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # Empty means in-process memory (per worker, reset on restart). Use e.g.
     # redis://host:6379 to share counters between workers or instances.
     RATE_LIMIT_STORAGE_URI: Optional[str] = None
+    # Request header holding the real client IP, set by the edge proxy (e.g.
+    # "cf-connecting-ip" on Render). Empty: use the connection's peer address.
+    # Only set it when the proxy always overwrites the header, or clients
+    # could choose their own rate-limit key.
+    CLIENT_IP_HEADER: Optional[str] = None
 
     @model_validator(mode="after")
     def _check_chroma(self) -> "Settings":

@@ -1,10 +1,14 @@
-"""Per-client-IP rate limits (slowapi). Behind a proxy, uvicorn must run with
---proxy-headers so request.client is the real client, not the proxy."""
+"""Per-client-IP rate limits (slowapi).
+
+The client IP is the CLIENT_IP_HEADER request header when that's configured
+(a header the platform's edge proxy sets and overwrites, such as Cloudflare's
+CF-Connecting-IP), otherwise the socket peer `request.client.host`. Behind a
+proxy that header is the only trustworthy source: X-Forwarded-For is appended
+to, so its left-most entry is whatever the client sent."""
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.core.config import settings
 
@@ -14,8 +18,18 @@ CHAT_LIMIT = "30/minute"
 QUIZ_GENERATE_LIMIT = "10/hour"
 UPLOAD_LIMIT = "20/hour"
 
+
+def client_ip(request: Request) -> str:
+    header = (settings.CLIENT_IP_HEADER or "").strip()
+    if header:
+        value = request.headers.get(header, "").split(",")[0].strip()
+        if value:
+            return value
+    return request.client.host if request.client else "unknown"
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=client_ip,
     enabled=settings.RATE_LIMIT_ENABLED,
     storage_uri=settings.RATE_LIMIT_STORAGE_URI or "memory://",
 )

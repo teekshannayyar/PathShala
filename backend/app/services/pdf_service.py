@@ -9,7 +9,8 @@ from app.services import embedding_service as embedding_service_module
 logger = logging.getLogger(__name__)
 
 NO_TEXT_ERROR = "No extractable text found (scanned/image PDF?)"
-MAX_ERROR_LENGTH = 500
+# Shown to the user for unexpected failures; the real exception is only logged.
+PROCESSING_FAILED_ERROR = "Couldn't read this PDF. Try reprocessing or uploading it again."
 
 
 class PDFService:
@@ -84,7 +85,7 @@ class PDFService:
                 doc.processing_error = None
                 db.commit()
                 logger.info("Processed document %s into %d chunks", document_id, len(chunks))
-            except Exception as e:
+            except Exception:
                 db.rollback()
                 # The user may have deleted the document while we were working
                 # (the file vanishes and the final UPDATE matches no row).
@@ -97,7 +98,7 @@ class PDFService:
 
                 logger.exception("Failed to process document %s", document_id)
                 doc.processing_status = "failed"
-                doc.processing_error = str(e)[:MAX_ERROR_LENGTH]
+                doc.processing_error = PROCESSING_FAILED_ERROR
                 doc.embedding_complete = False
                 db.commit()
         except Exception:

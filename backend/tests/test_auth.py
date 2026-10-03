@@ -175,11 +175,11 @@ def test_change_password(client, auth_headers):
     resp = client.put(
         "/api/auth/me/password",
         headers=headers,
-        json={"current_password": TEST_PASSWORD, "new_password": "brand-new-password"},
+        json={"current_password": TEST_PASSWORD, "new_password": "Brand-new-password"},
     )
     assert resp.status_code == 200, resp.text
     assert _login(client, "pw@example.com", TEST_PASSWORD).status_code == 401
-    assert _login(client, "pw@example.com", "brand-new-password").status_code == 200
+    assert _login(client, "pw@example.com", "Brand-new-password").status_code == 200
 
 
 def test_change_password_requires_correct_current_password(client, auth_headers):
@@ -187,9 +187,9 @@ def test_change_password_requires_correct_current_password(client, auth_headers)
     wrong = client.put(
         "/api/auth/me/password",
         headers=headers,
-        json={"current_password": "not-it-at-all", "new_password": "brand-new-password"},
+        json={"current_password": "not-it-at-all", "new_password": "Brand-new-password"},
     )
-    missing = client.put("/api/auth/me/password", headers=headers, json={"new_password": "brand-new-password"})
+    missing = client.put("/api/auth/me/password", headers=headers, json={"new_password": "Brand-new-password"})
     assert wrong.status_code == missing.status_code == 403
     assert _login(client, "pw@example.com", TEST_PASSWORD).status_code == 200
 
@@ -234,22 +234,22 @@ def google_token(monkeypatch):
 
 def test_google_only_user_needs_google_credential_to_set_password(client, google_only, google_token):
     assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is False
-    resp = client.put("/api/auth/me/password", headers=google_only, json={"new_password": "first-password"})
+    resp = client.put("/api/auth/me/password", headers=google_only, json={"new_password": "First-password"})
     assert resp.status_code == 403
     resp = client.put(
         "/api/auth/me/password",
         headers=google_only,
-        json={"new_password": "first-password", "google_credential": "expired-or-forged"},
+        json={"new_password": "First-password", "google_credential": "expired-or-forged"},
     )
     assert resp.status_code == 403
-    assert _login(client, "g@example.com", "first-password").status_code == 401
+    assert _login(client, "g@example.com", "First-password").status_code == 401
 
 
 def test_google_credential_for_another_email_is_403(client, google_only, google_token):
     resp = client.put(
         "/api/auth/me/password",
         headers=google_only,
-        json={"new_password": "first-password", "google_credential": "good:attacker@example.com"},
+        json={"new_password": "First-password", "google_credential": "good:attacker@example.com"},
     )
     assert resp.status_code == 403
     assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is False
@@ -259,11 +259,11 @@ def test_google_only_user_sets_password_with_fresh_google_credential(client, goo
     resp = client.put(
         "/api/auth/me/password",
         headers=google_only,
-        json={"new_password": "first-password", "google_credential": "good:G@Example.com"},
+        json={"new_password": "First-password", "google_credential": "good:G@Example.com"},
     )
     assert resp.status_code == 200, resp.text
     assert google_token == ["good:G@Example.com"]
-    assert _login(client, "g@example.com", "first-password").status_code == 200
+    assert _login(client, "g@example.com", "First-password").status_code == 200
     assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is True
 
 
@@ -272,18 +272,18 @@ def test_password_users_do_not_need_google(client, auth_headers, google_token):
     resp = client.put(
         "/api/auth/me/password",
         headers=headers,
-        json={"current_password": TEST_PASSWORD, "new_password": "brand-new-password"},
+        json={"current_password": TEST_PASSWORD, "new_password": "Brand-new-password"},
     )
     assert resp.status_code == 200
     # A Google credential can't stand in for the current password.
     resp = client.put(
         "/api/auth/me/password",
         headers=headers,
-        json={"new_password": "another-password", "google_credential": "good:pw@example.com"},
+        json={"new_password": "Another-password", "google_credential": "good:pw@example.com"},
     )
     assert resp.status_code == 403
     assert google_token == []
-    assert _login(client, "pw@example.com", "brand-new-password").status_code == 200
+    assert _login(client, "pw@example.com", "Brand-new-password").status_code == 200
 
 
 # --- Stats ------------------------------------------------------------------
@@ -298,3 +298,65 @@ def test_active_chats_counts_only_documents_with_messages(client, auth_headers, 
 
     client.post("/api/chat/", headers=headers, json={"question": "What is this?", "document_id": first})
     assert client.get("/api/auth/me/stats", headers=headers).json()["active_chats"] == 1
+
+
+# --- Round 2: signup name, password strength, analyzed count ------------------
+
+def test_register_requires_a_real_name(client, db):
+    for name in ["", "   ", "x" * 256]:
+        resp = client.post("/api/auth/register", json={"email": "n@example.com", "password": TEST_PASSWORD, "name": name})
+        assert resp.status_code == 422, name
+    resp = client.post("/api/auth/register", json={"email": "n@example.com", "password": TEST_PASSWORD})
+    assert resp.status_code == 422
+    resp = client.post("/api/auth/register", json={"email": "n@example.com", "password": TEST_PASSWORD, "name": "  Nia  "})
+    assert resp.status_code == 200
+    assert resp.json()["user"]["name"] == "Nia"
+
+
+WEAK_PASSWORDS = {
+    "no-uppercase-here": "uppercase",
+    "NoSymbolsHere123": "symbol",
+    "Sh-rt": "at least 8",
+}
+
+
+def test_register_enforces_signup_password_rules(client):
+    for password, reason in WEAK_PASSWORDS.items():
+        resp = register(client, password=password)
+        assert resp.status_code == 400, password
+        assert reason in resp.json()["detail"]
+    # Any non-alphanumeric character counts as a symbol, like the signup form.
+    for i, password in enumerate(["Under_score1", "Dash-dash1", "Space bar1"]):
+        assert register(client, email=f"ok{i}@example.com", password=password).status_code == 200
+
+
+def test_change_password_enforces_signup_password_rules(client, auth_headers):
+    headers = auth_headers("rules@example.com")
+    for password, reason in WEAK_PASSWORDS.items():
+        resp = client.put(
+            "/api/auth/me/password",
+            headers=headers,
+            json={"current_password": TEST_PASSWORD, "new_password": password},
+        )
+        assert resp.status_code == 400, password
+        assert reason in resp.json()["detail"]
+    assert _login(client, "rules@example.com", TEST_PASSWORD).status_code == 200
+
+
+def test_google_only_first_password_enforces_signup_rules(client, google_only, google_token):
+    resp = client.put(
+        "/api/auth/me/password",
+        headers=google_only,
+        json={"new_password": "lowercase-only", "google_credential": "good:g@example.com"},
+    )
+    assert resp.status_code == 400
+    assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is False
+
+
+def test_documents_analyzed_counts_only_ready_documents(client, auth_headers, upload_pdf, db):
+    headers = auth_headers()
+    ids = [upload_pdf(headers, filename=f"d{i}.pdf").json()["id"] for i in range(3)]
+    db.get(Document, ids[0]).processing_status = "failed"
+    db.get(Document, ids[1]).processing_status = "processing"
+    db.commit()
+    assert client.get("/api/auth/me/stats", headers=headers).json()["total_documents"] == 1

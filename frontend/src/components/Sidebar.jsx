@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, Loader2, Trash2, PlusCircle } from 'lucide-react';
+import { MessageSquare, Loader2, Trash2, PlusCircle, PanelLeftOpen } from 'lucide-react';
 import { getDocuments, deleteDocument } from '../api';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,6 +11,8 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [dontAskAgain, setDontAskAgain] = useState(false);
+  // Phones only: the sidebar is a drawer opened by a toggle (see Sidebar.css).
+  const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
   const executeDeleteLogic = async (docId) => {
@@ -73,12 +75,18 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
   }, [activeDocument]);
 
   const handleNewChat = () => {
+    setIsOpen(false);
     setActiveDocument(null);
     navigate('/chat');
   };
 
   return (
-    <div className="sidebar">
+    <>
+    <button className="sidebar-toggle" onClick={() => setIsOpen(true)} aria-label="Show chats" title="Show chats">
+      <PanelLeftOpen size={20} />
+    </button>
+    {isOpen && <div className="sidebar-backdrop" onClick={() => setIsOpen(false)} />}
+    <div className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-top-actions">
         <button className="new-chat-btn" onClick={handleNewChat}>
           <PlusCircle size={18} />
@@ -97,7 +105,7 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
             <div 
               key={doc.id}
               className={`doc-item ${activeDocument?.id === doc.id ? 'active' : ''}`}
-              onClick={() => setActiveDocument(doc)}
+              onClick={() => { setActiveDocument(doc); setIsOpen(false); }}
             >
               <MessageSquare size={16} className="doc-icon" />
               <div className="doc-info">
@@ -159,5 +167,6 @@ export default function Sidebar({ activeDocument, setActiveDocument, user, onLog
         document.body
       )}
     </div>
+    </>
   );
 }

@@ -105,11 +105,29 @@ class EmbeddingService:
             self.collection.delete(ids=ids_to_delete)
 
 
+def build_chroma_client(cfg=None) -> Any:
+    """Create the Chroma client selected by CHROMA_MODE. Settings validation
+    has already rejected http/cloud modes with missing required fields."""
+    import chromadb
+
+    cfg = cfg or settings
+    mode = cfg.CHROMA_MODE
+    if mode == "persistent":
+        os.makedirs(cfg.CHROMA_PATH, exist_ok=True)
+        return chromadb.PersistentClient(path=cfg.CHROMA_PATH)
+    if mode == "http":
+        headers = {"x-chroma-token": cfg.CHROMA_API_KEY} if cfg.CHROMA_API_KEY else None
+        return chromadb.HttpClient(host=cfg.CHROMA_HOST, port=cfg.CHROMA_PORT, ssl=cfg.CHROMA_SSL, headers=headers)
+    if mode == "cloud":
+        return chromadb.CloudClient(
+            tenant=cfg.CHROMA_TENANT or None, database=cfg.CHROMA_DATABASE or None, api_key=cfg.CHROMA_API_KEY
+        )
+    if mode == "ephemeral":
+        return chromadb.EphemeralClient()
+    raise ValueError(f"Unknown CHROMA_MODE: {mode!r}")
+
+
 @functools.lru_cache(maxsize=1)
 def get_embedding_service() -> EmbeddingService:
     """The app-wide service, created on first use rather than at import."""
-    import chromadb
-
-    os.makedirs(settings.CHROMA_PATH, exist_ok=True)
-    client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
-    return EmbeddingService(get_embedder(), client)
+    return EmbeddingService(get_embedder(), build_chroma_client(), collection_name=settings.CHROMA_COLLECTION)

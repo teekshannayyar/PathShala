@@ -1,6 +1,8 @@
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel, EmailStr, StringConstraints
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -13,6 +15,8 @@ import datetime
 from app.models.database import get_db
 from app.models.models import User
 from app.core.config import settings
+from app.core.rate_limit import AUTH_LIMIT, PASSWORD_CHANGE_LIMIT, limiter
+from app.core.timezone import get_user_tz, local_date, to_local_date
 from app.services.embedding_service import EmbeddingService, get_embedding_service
 
 router = APIRouter()
@@ -125,16 +129,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
+# Rate-limited endpoints take the Starlette request as `request` (slowapi
+# needs it by that name), so their JSON body is called `body`.
 @router.post("/register", response_model=LoginResponse)
-def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    email = normalize_email(request.email)
+@limiter.limit(AUTH_LIMIT)
+def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
+    email = normalize_email(body.email)
     if find_user_by_email(db, email):
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    validate_new_password(request.password)
+    validate_new_password(body.password)
 
-    hashed_password = hash_password(request.password)
-    user = User(email=email, hashed_password=hashed_password, name=request.name)
+    hashed_password = hash_password(body.password)
+    user = User(email=email, hashed_password=hashed_password, name=body.name)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -143,11 +150,12 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     return {"access_token": access_token, "user": user_payload(user)}
 
 @router.post("/login", response_model=LoginResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit(AUTH_LIMIT)
+def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     # One message for unknown email, Google-only account and wrong password,
     # so the endpoint doesn't reveal which emails are registered.
-    user = find_user_by_email(db, request.email)
-    if not user or not user.hashed_password or not verify_password(request.password, user.hashed_password):
+    user = find_user_by_email(db, body.email)
+    if not user or not user.hashed_password or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail=INVALID_LOGIN)
     
     access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
@@ -165,9 +173,10 @@ def verify_google_credential(credential: str) -> dict:
     return idinfo
 
 @router.post("/google", response_model=LoginResponse)
-def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
+@limiter.limit(AUTH_LIMIT)
+def google_login(request: Request, body: GoogleLoginRequest, db: Session = Depends(get_db)):
     try:
-        idinfo = verify_google_credential(request.credential)
+        idinfo = verify_google_credential(body.credential)
 
         email = normalize_email(idinfo['email'])
         name = idinfo.get('name', '')
@@ -211,30 +220,32 @@ def update_profile(
     return user_payload(user)
 
 @router.put("/me/password")
+@limiter.limit(PASSWORD_CHANGE_LIMIT)
 def change_password(
-    request: ChangePasswordRequest,
+    request: Request,
+    body: ChangePasswordRequest,
     db: Session = Depends(get_db),
     current_user: int = Depends(get_current_user),
 ):
     user = db.get(User, current_user)
     # Failures are 403, not 401: the session itself is valid.
     if user.hashed_password:
-        if not request.current_password or not verify_password(request.current_password, user.hashed_password):
+        if not body.current_password or not verify_password(body.current_password, user.hashed_password):
             raise HTTPException(status_code=403, detail="Current password is incorrect")
     else:
         # A Google-only account has no password to check, and a stolen
         # session token alone must not be enough to add a permanent one:
         # require a fresh Google sign-in for this same account.
-        if not request.google_credential:
+        if not body.google_credential:
             raise HTTPException(status_code=403, detail="Sign in with Google again to set a password")
         try:
-            idinfo = verify_google_credential(request.google_credential)
+            idinfo = verify_google_credential(body.google_credential)
         except Exception:
             raise HTTPException(status_code=403, detail="Google sign-in could not be verified")
         if normalize_email(str(idinfo.get("email") or "")) != normalize_email(user.email):
             raise HTTPException(status_code=403, detail="That Google account does not match this account")
-    validate_new_password(request.new_password)
-    user.hashed_password = hash_password(request.new_password)
+    validate_new_password(body.new_password)
+    user.hashed_password = hash_password(body.new_password)
     db.commit()
     return {"message": "Password updated"}
 
@@ -269,68 +280,59 @@ def delete_account(
     return {"message": "Account successfully deleted"}
 
 @router.get("/me/stats")
-def get_user_stats(authorization: str = Header(None), db: Session = Depends(get_db)):
-    from app.models.models import Document, Message
-    from sqlalchemy import func
-    
+def get_user_stats(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+    tz: ZoneInfo = Depends(get_user_tz),
+):
+    from app.models.models import ActivityLog, Document, Message
+
     user_id = get_current_user(authorization, db)
-    
+
     # Total documents analyzed
     total_docs = db.query(Document).filter(Document.owner_id == user_id).count()
-    
+
     # Active chats (documents with messages)
     active_chats = db.query(Document).join(Message).filter(Document.owner_id == user_id).distinct().count()
-    
-    # Compute study streaks based on unique dates of activity
-    doc_dates = db.query(func.date(Document.created_at)).filter(Document.owner_id == user_id).all()
-    msg_dates = db.query(func.date(Message.created_at)).join(Document).filter(Document.owner_id == user_id).all()
-    
-    # Also include permanent activity logs
-    from app.models.models import ActivityLog
+
+    # Study days: the user's local calendar days with an upload or message,
+    # plus the permanent activity log (already stored as local dates).
+    # Timestamps are converted in Python, not with SQL date(), so the day
+    # boundary is the user's midnight rather than the database's.
+    doc_times = db.query(Document.created_at).filter(Document.owner_id == user_id).all()
+    msg_times = db.query(Message.created_at).join(Document).filter(Document.owner_id == user_id).all()
     log_dates = db.query(ActivityLog.date_string).filter(ActivityLog.user_id == user_id).all()
-    
-    dates_set = set()
-    for d in doc_dates:
-        if d[0]: dates_set.add(str(d[0]))
-    for d in msg_dates:
-        if d[0]: dates_set.add(str(d[0]))
-    for d in log_dates:
-        if d[0]: dates_set.add(d[0])
-            
-    sorted_dates = sorted(list(dates_set))
-    
-    current_streak = 0
-    highest_streak = 0
-    
-    if sorted_dates:
-        import datetime
-        current_streak = 1
-        highest_streak = 1
-        temp_streak = 1
-        
-        for i in range(1, len(sorted_dates)):
-            date1 = datetime.datetime.strptime(sorted_dates[i-1], "%Y-%m-%d").date()
-            date2 = datetime.datetime.strptime(sorted_dates[i], "%Y-%m-%d").date()
-            
-            if (date2 - date1).days == 1:
-                temp_streak += 1
-                highest_streak = max(highest_streak, temp_streak)
-            else:
-                temp_streak = 1
-                
-        # Check if current streak is still active (active today or yesterday)
-        today = datetime.datetime.utcnow().date()
-        last_active = datetime.datetime.strptime(sorted_dates[-1], "%Y-%m-%d").date()
-        
-        if (today - last_active).days <= 1:
-            current_streak = temp_streak
-        else:
-            current_streak = 0
+
+    dates_set: set[datetime.date] = set()
+    for (created_at,) in doc_times + msg_times:
+        if created_at:
+            dates_set.add(to_local_date(created_at, tz))
+    for (date_string,) in log_dates:
+        try:
+            dates_set.add(datetime.date.fromisoformat(date_string))
+        except (TypeError, ValueError):
+            continue
+
+    sorted_dates = sorted(dates_set)
+    current_streak, highest_streak = compute_streaks(sorted_dates, local_date(tz))
 
     return {
         "total_documents": total_docs,
         "active_chats": active_chats,
         "current_streak": current_streak,
         "highest_streak": highest_streak,
-        "activity_dates": sorted_dates
+        "activity_dates": [d.isoformat() for d in sorted_dates],
     }
+
+
+def compute_streaks(sorted_dates: list[datetime.date], today: datetime.date) -> tuple[int, int]:
+    """(current, highest) runs of consecutive days. The current run counts
+    only if its last day is today or yesterday."""
+    if not sorted_dates:
+        return 0, 0
+    highest = run = 1
+    for prev, day in zip(sorted_dates, sorted_dates[1:]):
+        run = run + 1 if (day - prev).days == 1 else 1
+        highest = max(highest, run)
+    current = run if (today - sorted_dates[-1]).days <= 1 else 0
+    return current, highest

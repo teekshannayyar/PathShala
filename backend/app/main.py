@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIASGIMiddleware
+
 from app.core.config import settings
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.routes import documents, chat, auth, quizzes
 
 # The schema is managed by Alembic (`alembic upgrade head`); startup never
@@ -8,9 +12,17 @@ from app.api.routes import documents, chat, auth, quizzes
 
 app = FastAPI(title="PathShala API", version="1.0.0")
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+# Pure-ASGI variant of SlowAPIMiddleware (no BaseHTTPMiddleware buffering).
+# It enforces default limits; per-route limits are the @limiter.limit decorators.
+app.add_middleware(SlowAPIASGIMiddleware)
+
+# Added last so it is the outermost middleware: even a 429 carries CORS
+# headers, so the browser can show the error instead of a CORS failure.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

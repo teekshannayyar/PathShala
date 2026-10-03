@@ -4,6 +4,7 @@ from app.models.database import get_db
 from app.models.models import Document
 from app.services.pdf_service import PDFService
 from app.api.routes.auth import get_current_user
+from app.core.config import settings
 import os
 
 router = APIRouter()
@@ -20,8 +21,8 @@ async def upload_document(
     current_user: int = Depends(get_current_user)
 ):
     # Save the file temporarily
-    file_location = f"uploads/{file.filename}"
-    os.makedirs("uploads", exist_ok=True)
+    file_location = os.path.join(settings.UPLOAD_DIR, file.filename)
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     
     with open(file_location, "wb") as f:
         f.write(await file.read())

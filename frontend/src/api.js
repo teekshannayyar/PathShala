@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+export const API_BASE = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+export const api = axios.create({
+  baseURL: `${API_BASE}/api`,
 });
 
 api.interceptors.request.use((config) => {
@@ -11,6 +13,21 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export const login = async ({ email, password }) => {
+  const response = await api.post('/auth/login', { email, password });
+  return response.data;
+};
+
+export const register = async ({ name, email, password }) => {
+  const response = await api.post('/auth/register', { name, email, password });
+  return response.data;
+};
+
+export const googleLogin = async (credential) => {
+  const response = await api.post('/auth/google', { credential });
+  return response.data;
+};
 
 export const getDocuments = async () => {
   const response = await api.get('/documents/');

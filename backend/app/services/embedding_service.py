@@ -2,6 +2,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Optional
 import os
+from app.core.config import settings
 
 class EmbeddingService:
     def __init__(self):
@@ -9,10 +10,10 @@ class EmbeddingService:
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
         
         # Ensure the chroma data directory exists
-        os.makedirs("./chroma_data", exist_ok=True)
+        os.makedirs(settings.CHROMA_PATH, exist_ok=True)
         
         # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(path="./chroma_data")
+        self.client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
         self.collection = self.client.get_or_create_collection(
             name="pathshala_docs",
             metadata={"hnsw:space": "cosine"}

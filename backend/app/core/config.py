@@ -1,9 +1,11 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     DATABASE_URL: str
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
     CHROMA_PATH: str = "./chroma_data"
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_MB: int = 50
@@ -11,8 +13,5 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     FRONTEND_URL: str = "http://localhost:5173"
     GOOGLE_CLIENT_ID: str
-
-    class Config:
-        env_file = ".env"
 
 settings = Settings()

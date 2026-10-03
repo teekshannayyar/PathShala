@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.models.database import get_db
 from app.models.models import Document
 from app.services.pdf_service import PDFService
+from app.services.upload_service import max_upload_bytes, save_pdf_upload
 from app.api.routes.auth import get_current_user
 from app.core.config import settings
 import os
+
+# Allowance for multipart boundaries/headers on top of the file itself.
+MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 router = APIRouter()
 
@@ -15,28 +19,36 @@ def get_documents(db: Session = Depends(get_db), current_user: int = Depends(get
 
 @router.post("/upload")
 async def upload_document(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: int = Depends(get_current_user)
 ):
-    # Save the file temporarily
-    file_location = os.path.join(settings.UPLOAD_DIR, file.filename)
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    
-    with open(file_location, "wb") as f:
-        f.write(await file.read())
+    # Fail fast on an oversized declared body; save_pdf_upload enforces the
+    # real limit while streaming, since Content-Length can be absent or wrong.
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > max_upload_bytes() + MULTIPART_OVERHEAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File exceeds {settings.MAX_UPLOAD_MB} MB limit")
+
+    stored_path, size_bytes, display_name = await save_pdf_upload(file)
 
     # Create the document in database
-    db_doc = Document(
-        filename=file.filename,
-        file_path=file_location,
-        file_size=os.path.getsize(file_location),
-        owner_id=current_user
-    )
-    db.add(db_doc)
-    db.commit()
-    db.refresh(db_doc)
+    try:
+        db_doc = Document(
+            filename=display_name,
+            file_path=stored_path,
+            file_size=size_bytes,
+            owner_id=current_user
+        )
+        db.add(db_doc)
+        db.commit()
+        db.refresh(db_doc)
+    except Exception:
+        db.rollback()
+        if os.path.exists(stored_path):
+            os.remove(stored_path)
+        raise
 
     # Record permanent activity log for streak
     from app.models.models import ActivityLog
@@ -65,7 +77,7 @@ def delete_document(document_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=404, detail="Document not found")
         
     # Delete file from disk
-    if os.path.exists(doc.file_path):
+    if doc.file_path and os.path.exists(doc.file_path):
         os.remove(doc.file_path)
         
     # Delete from ChromaDB
@@ -118,7 +130,7 @@ def bulk_delete_documents(request: BulkDeleteRequest, db: Session = Depends(get_
     
     deleted_ids = []
     for doc in docs:
-        if os.path.exists(doc.file_path):
+        if doc.file_path and os.path.exists(doc.file_path):
             os.remove(doc.file_path)
         embedding_service.delete_document(doc.id)
         db.delete(doc)

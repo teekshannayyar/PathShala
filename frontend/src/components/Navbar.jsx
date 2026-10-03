@@ -1,9 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { Plus, Settings, LogOut, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { uploadDocument } from '../api';
+import { uploadDocument, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './Navbar.css';
+
+const MAX_UPLOAD_MB = 50;
 
 export default function Navbar({ user, onLogout, setActiveDocument }) {
   const navigate = useNavigate();
@@ -22,8 +24,8 @@ export default function Navbar({ user, onLogout, setActiveDocument }) {
     const file = e.target.files[0];
     if (!file) return;
     
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File is too large! Please upload a PDF smaller than 10MB.");
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`File is too large! Please upload a PDF smaller than ${MAX_UPLOAD_MB}MB.`);
       return;
     }
 
@@ -36,7 +38,7 @@ export default function Navbar({ user, onLogout, setActiveDocument }) {
       navigate('/chat');
     } catch (error) {
       console.error("Upload failed", error);
-      toast.error("Failed to upload document", { id: 'upload' });
+      toast.error(errorMessage(error, "Failed to upload document"), { id: 'upload' });
     } finally {
       setIsUploading(false);
       if (e.target) e.target.value = null;

@@ -13,6 +13,9 @@ from app.core.config import settings
 
 router = APIRouter()
 
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_BYTES = 72
+
 class GoogleLoginRequest(BaseModel):
     credential: str
 
@@ -62,7 +65,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def register(request: ManualAuthRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == request.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    
+
+    # bcrypt only uses the first 72 bytes and bcrypt>=5 raises beyond that.
+    if len(request.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+    if len(request.password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise HTTPException(status_code=400, detail=f"Password must be at most {MAX_PASSWORD_BYTES} bytes")
+
     hashed_password = hash_password(request.password)
     user = User(email=request.email, hashed_password=hashed_password, name=request.name)
     db.add(user)
@@ -144,6 +153,15 @@ def delete_account(request: DeleteAccountRequest, authorization: str = Header(No
         if not verify_password(request.password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid password")
     
+    # Remove the user's uploaded files and vectors; the DB rows cascade.
+    from app.models.models import Document
+    from app.services.embedding_service import embedding_service
+    import os
+    for doc in db.query(Document).filter(Document.owner_id == user_id).all():
+        if doc.file_path and os.path.exists(doc.file_path):
+            os.remove(doc.file_path)
+        embedding_service.delete_document(doc.id)
+
     db.delete(user)
     db.commit()
     return {"message": "Account successfully deleted"}

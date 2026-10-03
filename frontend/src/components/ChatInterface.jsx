@@ -8,6 +8,8 @@ import { askQuestion, uploadDocument, getChatHistory, generateQuiz } from '../ap
 import toast from 'react-hot-toast';
 import './ChatInterface.css';
 
+const MAX_UPLOAD_MB = 50;
+
 export default function ChatInterface({ activeDocument, setActiveDocument }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -85,7 +87,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       setMessages(prev => [...prev, newBotMsg]);
     } catch (error) {
       console.error("Chat error", error);
-      toast.error("Network error: Failed to get response from AI");
+      toast.error(error.response?.data?.detail || "Network error: Failed to get response from AI");
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
@@ -101,8 +103,8 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
     const file = e.target.files[0];
     if (!file) return;
     
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      toast.error("File is too large! Please upload a PDF smaller than 10MB.");
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`File is too large! Please upload a PDF smaller than ${MAX_UPLOAD_MB}MB.`);
       return;
     }
 
@@ -114,7 +116,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       toast.success("PDF uploaded successfully!", { id: 'upload' });
     } catch (error) {
       console.error("Upload failed", error);
-      toast.error("Failed to upload document", { id: 'upload' });
+      toast.error(error.response?.data?.detail || "Failed to upload document", { id: 'upload' });
     } finally {
       setIsUploading(false);
       e.target.value = null; // reset input

@@ -1,9 +1,15 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+import datetime
+import json
 from typing import Optional, List
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
+
+from app.api.deps import get_owned_document
+from app.api.routes.auth import get_current_user
 from app.models.database import get_db
-from app.models.models import Message
+from app.models.models import ActivityLog, Document, Message
 from app.services.embedding_service import embedding_service
 from app.services.llm_service import llm_service
 
@@ -21,25 +27,25 @@ class MessageResponse(BaseModel):
     id: int
     role: str
     content: str
-    
-    class Config:
-        orm_mode = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 @router.get("/history/{document_id}", response_model=List[MessageResponse])
-def get_chat_history(document_id: int, db: Session = Depends(get_db)):
+def get_chat_history(document_id: int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
+    get_owned_document(db, document_id, current_user)
     return db.query(Message).filter(Message.document_id == document_id).order_by(Message.created_at.asc()).all()
-
-from app.api.routes.auth import get_current_user
 
 @router.post("/", response_model=ChatResponse)
 def ask_question(request: ChatRequest, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
     relevant_chunks = []
     sources = []
     history = []
-    
+
+    # Ownership check must happen before anything is written for this user.
+    if request.document_id is not None:
+        get_owned_document(db, request.document_id, current_user)
+
     # Record permanent activity log for streak
-    from app.models.models import ActivityLog
-    import datetime
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     existing_log = db.query(ActivityLog).filter(
         ActivityLog.user_id == current_user,
@@ -80,11 +86,6 @@ def ask_question(request: ChatRequest, db: Session = Depends(get_db), current_us
         db.commit()
 
     return ChatResponse(answer=answer, sources=sources)
-
-import json
-from fastapi import HTTPException
-from app.models.models import Document
-from app.api.routes.auth import get_current_user
 
 @router.post("/quiz/{document_id}")
 def generate_quiz(document_id: int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):

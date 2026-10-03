@@ -5,6 +5,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* mobile browsers: exclude the URL bar so the chat input stays on screen */
   width: 100vw;
   overflow: hidden;
 }
@@ -12,6 +13,8 @@
 .app-main {
   display: flex;
   flex: 1;
+  min-height: 0;
+  position: relative;
   overflow: hidden;
   background-color: var(--bg-primary);
   background-image: 

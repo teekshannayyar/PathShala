@@ -305,3 +305,77 @@
   color: #b91c1c;
   text-decoration: line-through;
 }
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 767px) {
+  .quiz-taker-container {
+    padding: 16px 16px 24px;
+  }
+
+  /* Exit and the counter share the first line; the title goes below. */
+  .quiz-taker-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .quiz-taker-header h2 {
+    order: 3;
+    flex-basis: 100%;
+    text-align: left;
+    font-size: 18px;
+  }
+
+  .back-btn {
+    min-height: 44px;
+    margin-left: -12px;
+  }
+
+  .progress-bar-container {
+    margin-bottom: 24px;
+  }
+
+  .question-card {
+    padding: 20px 16px;
+    margin-bottom: 24px;
+  }
+
+  .question-text {
+    font-size: 17px;
+    margin-bottom: 20px;
+  }
+
+  .option-btn {
+    gap: 12px;
+    padding: 12px 14px;
+    text-align: left;
+  }
+
+  .option-marker {
+    flex-shrink: 0;
+  }
+
+  .option-text {
+    font-size: 15px;
+  }
+
+  .quiz-taker-footer {
+    gap: 12px;
+  }
+
+  .nav-btn {
+    flex: 1;
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  .quiz-results-header {
+    padding: 32px 16px;
+    margin-bottom: 24px;
+  }
+
+  .result-card {
+    padding: 16px;
+  }
+}

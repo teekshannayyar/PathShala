@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Plus, Settings, LogOut, BookOpen, Loader2 } from 'lucide-react';
+import { Plus, Settings, LogOut, BookOpen, Loader2, Menu, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { uploadDocument, errorMessage } from '../api';
 import toast from 'react-hot-toast';
@@ -12,6 +12,8 @@ export default function Navbar({ onLogout, setActiveDocument }) {
   const location = useLocation();
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
+  // Phones only: the links collapse into a menu behind a toggle (see Navbar.css).
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleNewChat = () => {
     // Instead of just navigating, we can directly prompt for a file upload
@@ -47,13 +49,23 @@ export default function Navbar({ onLogout, setActiveDocument }) {
 
   return (
     <>
-      <nav className="top-navbar glass">
-        <div className="navbar-brand" onClick={() => navigate('/dashboard')}>
+      <nav className={`top-navbar glass ${menuOpen ? 'menu-open' : ''}`}>
+        <div className="navbar-brand" onClick={() => { setMenuOpen(false); navigate('/dashboard'); }}>
           <BookOpen size={24} className="brand-icon" />
           <h2>PathShala</h2>
         </div>
 
-        <div className="navbar-right">
+        <button
+          className="nav-menu-toggle"
+          onClick={() => setMenuOpen(open => !open)}
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+        >
+          {menuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+
+        {/* Any button pressed in the menu also closes it. */}
+        <div className="navbar-right" onClick={(e) => { if (e.target.closest('button')) setMenuOpen(false); }}>
           <div className="navbar-links">
             <button 
               className={`nav-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
@@ -109,6 +121,7 @@ export default function Navbar({ onLogout, setActiveDocument }) {
           </button>
         </div>
       </nav>
+      {menuOpen && <div className="nav-menu-backdrop" onClick={() => setMenuOpen(false)} />}
     </>
   );
 }

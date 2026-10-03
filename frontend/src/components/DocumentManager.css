@@ -238,3 +238,106 @@
   color: white;
   border-color: var(--accent-primary);
 }
+
+/* The landing page's .badge (a pill with a 32px bottom margin) leaks in here. */
+.folder-title .badge {
+  display: inline-block;
+  margin: 0;
+  padding: 2px 8px;
+  border: none;
+  box-shadow: none;
+  background: var(--bg-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- Narrow screens ---------- */
+
+/* Long names truncate instead of pushing the actions off-screen. */
+.doc-info-main {
+  min-width: 0;
+}
+
+.doc-info-main .doc-icon {
+  flex-shrink: 0;
+}
+
+.doc-row .doc-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-actions {
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .doc-manager-container {
+    padding: 24px 16px;
+  }
+
+  .doc-manager-header {
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .doc-manager-header h1 {
+    font-size: 24px;
+  }
+
+  .folder-items {
+    padding-left: 0;
+  }
+
+  /* Name on the first line, actions on their own line below it. */
+  .doc-row {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    padding: 10px 8px 6px 12px;
+  }
+
+  .doc-checkbox {
+    width: 40px;
+    height: 40px;
+    margin: -8px 4px -8px -8px;
+  }
+
+  .doc-info-main {
+    flex-basis: calc(100% - 40px);
+  }
+
+  .doc-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 2px;
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .move-dropdown {
+    width: 100%;
+  }
+
+  .folder-input {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    font-size: 16px;
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+
+  .inline-edit-input {
+    min-width: 0;
+    font-size: 16px;
+  }
+}

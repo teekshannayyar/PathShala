@@ -423,3 +423,72 @@
     padding: 16px 24px;
   }
 }
+
+@media (max-width: 480px) {
+  .landing-nav {
+    padding: 12px 16px;
+  }
+
+  .nav-logo {
+    font-size: 18px;
+    gap: 8px;
+  }
+
+  .nav-actions {
+    gap: 4px;
+  }
+
+  .nav-actions .login-btn,
+  .nav-actions .primary-btn {
+    white-space: nowrap;
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+
+  .nav-actions .primary-btn svg {
+    display: none;
+  }
+
+  .hero-section {
+    padding: 112px 16px 56px;
+  }
+
+  .hero-title {
+    font-size: 36px;
+  }
+
+  .hero-subtitle {
+    font-size: 17px;
+    margin-bottom: 32px;
+  }
+
+  .hero-mockup-wrapper {
+    margin-top: 48px;
+  }
+
+  .features-section {
+    padding: 72px 16px;
+  }
+
+  .features-header {
+    margin-bottom: 40px;
+  }
+
+  .features-header h2 {
+    font-size: 30px;
+  }
+
+  .feature-card {
+    padding: 28px 24px;
+  }
+
+  .landing-footer {
+    padding: 32px 16px;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+}

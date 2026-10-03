@@ -90,3 +90,20 @@ body {
 .animate-slide-up {
   animation: slideUp 0.2s ease-out forwards;
 }
+
+/* Loading indicators (Loader2 icons) */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation-duration: 2.5s;
+  }
+}

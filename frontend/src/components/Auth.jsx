@@ -70,11 +70,6 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
             <h1>PathShala</h1>
           </div>
           
-          <div className="auth-quote">
-            "The beautiful thing about learning is that no one can take it away from you."
-            <span>- B.B. King</span>
-          </div>
-
           <div className="auth-features">
             <div className="auth-feature-item">
               <div className="feature-icon-box"><MessageSquare size={18} /></div>

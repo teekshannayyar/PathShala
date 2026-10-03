@@ -125,3 +125,9 @@ export const getWeakTopics = async () => {
   const response = await api.get('/quizzes/analytics/weak-topics');
   return response.data;
 };
+
+// FastAPI returns a string detail for HTTPException and a list for validation errors.
+export const errorMessage = (error, fallback) => {
+  const detail = error?.response?.data?.detail;
+  return typeof detail === 'string' && detail ? detail : fallback;
+};

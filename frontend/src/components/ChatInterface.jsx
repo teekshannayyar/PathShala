@@ -4,7 +4,7 @@ import { Send, User, Bot, Paperclip, Loader2, PanelLeftOpen } from 'lucide-react
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { askQuestion, uploadDocument, getChatHistory, generateQuiz } from '../api';
+import { askQuestion, uploadDocument, getChatHistory, generateQuiz, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './ChatInterface.css';
 
@@ -87,7 +87,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       setMessages(prev => [...prev, newBotMsg]);
     } catch (error) {
       console.error("Chat error", error);
-      toast.error(error.response?.data?.detail || "Network error: Failed to get response from AI");
+      toast.error(errorMessage(error, "Network error: Failed to get response from AI"));
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
@@ -116,7 +116,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       toast.success("PDF uploaded successfully!", { id: 'upload' });
     } catch (error) {
       console.error("Upload failed", error);
-      toast.error(error.response?.data?.detail || "Failed to upload document", { id: 'upload' });
+      toast.error(errorMessage(error, "Failed to upload document"), { id: 'upload' });
     } finally {
       setIsUploading(false);
       e.target.value = null; // reset input

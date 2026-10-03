@@ -17,7 +17,11 @@ def max_upload_bytes() -> int:
 
 
 def _display_name(raw: str | None) -> str:
-    name = os.path.basename(raw or "").strip()[:255]
+    name = os.path.basename(raw or "").strip()
+    if len(name) > 255:
+        # Keep the extension so long names still pass the .pdf check.
+        stem, ext = os.path.splitext(name)
+        name = stem[: 255 - len(ext)] + ext
     return name or DEFAULT_DISPLAY_NAME
 
 

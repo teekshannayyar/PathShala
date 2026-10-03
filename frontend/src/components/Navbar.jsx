@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Plus, Settings, LogOut, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { uploadDocument } from '../api';
+import { uploadDocument, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './Navbar.css';
 
@@ -38,7 +38,7 @@ export default function Navbar({ user, onLogout, setActiveDocument }) {
       navigate('/chat');
     } catch (error) {
       console.error("Upload failed", error);
-      toast.error(error.response?.data?.detail || "Failed to upload document", { id: 'upload' });
+      toast.error(errorMessage(error, "Failed to upload document"), { id: 'upload' });
     } finally {
       setIsUploading(false);
       if (e.target) e.target.value = null;

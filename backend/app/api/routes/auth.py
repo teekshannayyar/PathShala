@@ -153,6 +153,15 @@ def delete_account(request: DeleteAccountRequest, authorization: str = Header(No
         if not verify_password(request.password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid password")
     
+    # Remove the user's uploaded files and vectors; the DB rows cascade.
+    from app.models.models import Document
+    from app.services.embedding_service import embedding_service
+    import os
+    for doc in db.query(Document).filter(Document.owner_id == user_id).all():
+        if doc.file_path and os.path.exists(doc.file_path):
+            os.remove(doc.file_path)
+        embedding_service.delete_document(doc.id)
+
     db.delete(user)
     db.commit()
     return {"message": "Account successfully deleted"}

@@ -187,3 +187,36 @@ def test_document_deleted_during_processing_leaves_no_row_or_vectors(
 
     assert db.get(Document, doc_id) is None
     assert not fake_embedding_service.collection.get(where={"document_id": doc_id})["ids"]
+
+
+def test_document_list_is_newest_first(client, auth_headers, upload_pdf):
+    headers = auth_headers()
+    ids = [upload_pdf(headers, filename=f"doc{i}.pdf").json()["id"] for i in range(3)]
+    listed = [d["id"] for d in client.get("/api/documents/", headers=headers).json()]
+    assert listed == list(reversed(ids))
+
+
+def test_rename_and_folder_strip_whitespace(client, auth_headers, upload_pdf):
+    headers = auth_headers()
+    doc_id = upload_pdf(headers).json()["id"]
+    resp = client.put(f"/api/documents/{doc_id}/rename", headers=headers, json={"filename": "  Chapter 1.pdf  "})
+    assert resp.status_code == 200
+    assert resp.json()["filename"] == "Chapter 1.pdf"
+    resp = client.put(f"/api/documents/{doc_id}/folder", headers=headers, json={"folder": "  Biology "})
+    assert resp.status_code == 200
+    assert resp.json()["folder"] == "Biology"
+
+
+def test_rename_and_folder_validation_is_422_not_500(client, auth_headers, upload_pdf, db):
+    headers = auth_headers()
+    doc_id = upload_pdf(headers).json()["id"]
+    for name in ["", "   ", "x" * 256]:
+        assert client.put(f"/api/documents/{doc_id}/rename", headers=headers, json={"filename": name}).status_code == 422
+    for folder in ["", "   ", "f" * 101]:
+        assert client.put(f"/api/documents/{doc_id}/folder", headers=headers, json={"folder": folder}).status_code == 422
+    # The limits themselves are accepted.
+    assert client.put(f"/api/documents/{doc_id}/rename", headers=headers, json={"filename": "x" * 255}).status_code == 200
+    assert client.put(f"/api/documents/{doc_id}/folder", headers=headers, json={"folder": "f" * 100}).status_code == 200
+    db.expire_all()
+    doc = db.get(Document, doc_id)
+    assert (len(doc.filename), len(doc.folder)) == (255, 100)

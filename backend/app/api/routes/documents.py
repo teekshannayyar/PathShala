@@ -11,7 +11,7 @@ from app.services.upload_service import max_upload_bytes, save_pdf_upload
 from app.api.routes.auth import get_current_user
 from app.core.config import settings
 from datetime import timedelta
-from typing import List
+from typing import Annotated, List
 import os
 
 # A document still "processing" after this long is assumed stuck (e.g. the
@@ -25,7 +25,12 @@ router = APIRouter()
 
 @router.get("/", response_model=List[DocumentResponse])
 def get_documents(db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
-    return db.query(Document).filter(Document.owner_id == current_user).all()
+    return (
+        db.query(Document)
+        .filter(Document.owner_id == current_user)
+        .order_by(Document.created_at.desc(), Document.id.desc())
+        .all()
+    )
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
@@ -138,13 +143,15 @@ def reprocess_document(
     background_tasks.add_task(PDFService.process_document, doc.id)
     return doc
 
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
+# Limits match the documents.filename / documents.folder column sizes, so bad
+# input is a 422 instead of a database error.
 class RenameRequest(BaseModel):
-    filename: str
+    filename: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
 
 class MoveFolderRequest(BaseModel):
-    folder: str
+    folder: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 class BulkDeleteRequest(BaseModel):
     document_ids: List[int]

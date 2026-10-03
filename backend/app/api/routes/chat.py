@@ -1,9 +1,9 @@
 import datetime
 import logging
-from typing import Optional, List
+from typing import Annotated, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_owned_document
@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+MAX_QUESTION_CHARS = 4000
+
 class ChatRequest(BaseModel):
-    question: str
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_QUESTION_CHARS)]
     document_id: Optional[int] = None
 
 class ChatResponse(BaseModel):

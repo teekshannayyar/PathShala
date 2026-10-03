@@ -2,7 +2,7 @@ import json
 import logging
 from typing import List, Dict
 
-from groq import Groq
+from groq import BadRequestError, Groq
 
 from app.core.config import settings
 from app.services.quiz_parser import QUIZ_NUM_QUESTIONS, QuizFormatError, parse_quiz_payload
@@ -10,6 +10,15 @@ from app.services.quiz_parser import QUIZ_NUM_QUESTIONS, QuizFormatError, parse_
 logger = logging.getLogger(__name__)
 
 QUIZ_MAX_INPUT_CHARS = 15000
+# Groq's error code when a JSON-mode reply fails its own JSON validation.
+GROQ_JSON_VALIDATE_FAILED = "json_validate_failed"
+
+
+def _is_json_validate_failed(err: BadRequestError) -> bool:
+    body = err.body
+    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+        body = body["error"]
+    return isinstance(body, dict) and body.get("code") == GROQ_JSON_VALIDATE_FAILED
 
 class LLMService:
     def __init__(self):
@@ -64,6 +73,17 @@ class LLMService:
         )
         return chat_completion.choices[0].message.content or ""
 
+    def _attempt_quiz(self, messages: List[Dict]) -> List[Dict]:
+        """One LLM call plus parsing. Invalid output raises QuizFormatError or
+        json.JSONDecodeError, including Groq rejecting its own JSON-mode reply."""
+        try:
+            raw = self._request_quiz(messages)
+        except BadRequestError as e:
+            if _is_json_validate_failed(e):
+                raise QuizFormatError("the reply was not valid JSON") from e
+            raise
+        return parse_quiz_payload(raw)
+
     def generate_quiz(self, document_text: str) -> List[Dict]:
         """Generate a validated multiple-choice quiz from document text.
 
@@ -92,9 +112,8 @@ class LLMService:
             {"role": "user", "content": f"Document text:\n{truncated_text}\n\nGenerate the JSON quiz now."},
         ]
 
-        raw = self._request_quiz(messages)
         try:
-            return parse_quiz_payload(raw)
+            return self._attempt_quiz(messages)
         except (QuizFormatError, json.JSONDecodeError) as e:
             logger.warning("Quiz output invalid, retrying once: %s", e)
             messages = messages + [
@@ -104,9 +123,8 @@ class LLMService:
                 },
             ]
 
-        raw = self._request_quiz(messages)
         try:
-            return parse_quiz_payload(raw)
+            return self._attempt_quiz(messages)
         except (QuizFormatError, json.JSONDecodeError) as e:
             logger.warning("Quiz output invalid after retry: %s", e)
             raise QuizFormatError(f"Quiz generation failed after retry: {e}") from e

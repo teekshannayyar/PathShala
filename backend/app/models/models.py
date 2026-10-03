@@ -28,7 +28,11 @@ class Document(Base):
     summary = Column(Text)
     key_concepts = Column(String(1000))
     total_chunks = Column(Integer, default=0)
+    # Kept for compatibility: true only when processing_status == "ready".
     embedding_complete = Column(Boolean, default=False)
+    # One of "processing", "ready", "failed".
+    processing_status = Column(String(20), nullable=False, default="processing", server_default="processing")
+    processing_error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

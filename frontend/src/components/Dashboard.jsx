@@ -86,7 +86,11 @@ export default function Dashboard({ onDocumentSelect }) {
                   <div className="doc-card-info">
                     <span className="doc-name" title={doc.filename}>{doc.filename.replace('.pdf', '')}</span>
                     <span className="doc-status">
-                      {doc.embedding_complete ? (
+                      {doc.processing_status === 'failed' ? (
+                        <span className="status-badge failed" title={doc.processing_error || 'Processing failed'}>
+                          <span className="status-dot failed"></span> Failed
+                        </span>
+                      ) : doc.processing_status === 'ready' ? (
                         <><span className="status-dot ready"></span> Ready to chat</>
                       ) : (
                         <><span className="status-dot processing"></span> Processing...</>
@@ -125,7 +129,7 @@ export default function Dashboard({ onDocumentSelect }) {
                 </div>
               </button>
 
-              {documents && documents.length > 0 && documents[0].embedding_complete && (
+              {documents && documents.length > 0 && documents[0].processing_status === 'ready' && (
                 <button className="action-btn" onClick={() => onDocumentSelect(documents[0])}>
                   <div className="action-icon"><MessageSquare size={18} /></div>
                   <div className="action-text">

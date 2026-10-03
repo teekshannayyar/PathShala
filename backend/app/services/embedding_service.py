@@ -31,8 +31,8 @@ class EmbeddingService:
         ids = [f"doc_{document_id}_chunk_{i}" for i in range(len(chunks))]
         metadatas = [{"document_id": document_id, "chunk_index": i} for i in range(len(chunks))]
         
-        # Add to the database
-        self.collection.add(
+        # Upsert so re-processing a document can't fail on duplicate IDs
+        self.collection.upsert(
             ids=ids,
             documents=chunks,
             embeddings=embeddings,

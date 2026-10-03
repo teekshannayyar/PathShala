@@ -143,6 +143,28 @@
   color: var(--text-primary);
 }
 
+.status-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.failed {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  cursor: help;
+}
+
+.status-badge.processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
 .inline-edit-input {
   flex: 1;
   padding: 4px 8px;

@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List
 import json
+import logging
+import os
 
+from app.api.deps import get_owned_document
 from app.models.database import get_db
-from app.models.models import Document, Quiz, Question, QuizAttempt, QuestionAttempt
+from app.models.models import Quiz, Question, QuizAttempt, QuestionAttempt
 from app.api.routes.auth import get_current_user
 from app.services.llm_service import llm_service
+from app.services.quiz_parser import QuizFormatError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -25,47 +30,48 @@ class SubmitQuizRequest(BaseModel):
 
 @router.post("/generate/{document_id}", response_model=QuizGenerationResponse)
 def generate_and_save_quiz(document_id: int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
-    doc = db.query(Document).filter(Document.id == document_id, Document.owner_id == current_user).first()
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-        
-    text_to_use = doc.summary if doc.summary else doc.original_text
-    
-    # We must prompt the LLM to specifically include 'topic'
+    doc = get_owned_document(db, document_id, current_user)
+
+    if doc.processing_status == "processing":
+        raise HTTPException(status_code=409, detail="Document is still processing")
+    if doc.processing_status == "failed" or not (doc.original_text or "").strip():
+        raise HTTPException(status_code=422, detail="Document has no extracted text; try reprocessing")
+
+    text = doc.summary or doc.original_text
+
     try:
-        raw_response = llm_service.generate_quiz(text_to_use)
-        if raw_response.startswith("```json"):
-            raw_response = raw_response[7:-3]
-        elif raw_response.startswith("```"):
-            raw_response = raw_response[3:-3]
-            
-        quiz_data = json.loads(raw_response.strip())
-        
-        # Save Quiz
-        quiz_title = f"Quiz on {doc.filename.replace('.pdf', '')}"
-        new_quiz = Quiz(document_id=doc.id, user_id=current_user, title=quiz_title)
+        questions = llm_service.generate_quiz(text)
+    except QuizFormatError:
+        raise HTTPException(status_code=502, detail="Quiz generation failed, please try again")
+    except Exception:
+        logger.exception("Quiz generation failed for document %s", document_id)
+        raise HTTPException(status_code=502, detail="Quiz generation failed, please try again")
+
+    # Save the quiz and all of its questions in one transaction.
+    try:
+        new_quiz = Quiz(
+            document_id=doc.id,
+            user_id=current_user,
+            title=os.path.splitext(doc.filename)[0],
+        )
         db.add(new_quiz)
-        db.commit()
-        db.refresh(new_quiz)
-        
-        # Save Questions
-        for q in quiz_data:
-            # Assuming the LLM output has 'question', 'options', 'answer', and potentially 'topic'
-            topic = q.get('topic', 'General Knowledge')
-            options_json = json.dumps(q['options'])
-            new_q = Question(
+        db.flush()
+
+        for q in questions:
+            db.add(Question(
                 quiz_id=new_quiz.id,
-                text=q['question'],
-                options=options_json,
-                correct_answer=q['answer'],
-                topic=topic
-            )
-            db.add(new_q)
+                text=q["question"],
+                options=json.dumps(q["options"]),
+                correct_answer=q["answer"],
+                topic=q["topic"],
+            ))
         db.commit()
-        
-        return {"quiz_id": new_quiz.id, "title": new_quiz.title}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to save quiz for document %s", document_id)
+        raise HTTPException(status_code=500, detail="Could not save quiz")
+
+    return {"quiz_id": new_quiz.id, "title": new_quiz.title}
 
 @router.get("/")
 def get_all_quizzes(db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):

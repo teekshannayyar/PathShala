@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getDocuments, renameDocument, moveDocumentToFolder, bulkDeleteDocuments, deleteDocument } from '../api';
-import { Folder, FileText, MoreVertical, Edit2, Trash2, FolderPlus, Loader2, CheckSquare, Square, FolderInput } from 'lucide-react';
+import { getDocuments, renameDocument, moveDocumentToFolder, bulkDeleteDocuments, deleteDocument, reprocessDocument, errorMessage } from '../api';
+import { Folder, FileText, MoreVertical, Edit2, Trash2, FolderPlus, Loader2, CheckSquare, Square, FolderInput, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import './DocumentManager.css';
@@ -31,6 +31,20 @@ export default function DocumentManager({ onDocumentSelect }) {
   useEffect(() => {
     loadDocs();
   }, []);
+
+  // While any document is processing, poll quietly so its status updates.
+  const hasProcessing = documents.some(d => d.processing_status === 'processing');
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const timer = setTimeout(async () => {
+      try {
+        setDocuments(await getDocuments());
+      } catch {
+        // Keep the current list; the next poll or reload will retry.
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [hasProcessing, documents]);
 
   const toggleSelect = (id) => {
     const newSet = new Set(selectedIds);
@@ -106,6 +120,16 @@ export default function DocumentManager({ onDocumentSelect }) {
       toast.success("Deleted successfully");
     } catch (err) {
       toast.error("Failed to delete");
+    }
+  };
+
+  const handleReprocess = async (id) => {
+    try {
+      const updated = await reprocessDocument(id);
+      setDocuments(docs => docs.map(d => d.id === id ? updated : d));
+      toast.success("Reprocessing started");
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to reprocess document"));
     }
   };
 
@@ -191,6 +215,16 @@ export default function DocumentManager({ onDocumentSelect }) {
                         ) : (
                           <span className="doc-name">{doc.filename}</span>
                         )}
+                        {doc.processing_status === 'failed' && (
+                          <span className="status-badge failed" title={doc.processing_error || 'Processing failed'}>
+                            Failed
+                          </span>
+                        )}
+                        {doc.processing_status === 'processing' && (
+                          <span className="status-badge processing">
+                            <Loader2 size={12} className="spin" /> Processing
+                          </span>
+                        )}
                       </div>
 
                       <div className="doc-actions">
@@ -218,6 +252,14 @@ export default function DocumentManager({ onDocumentSelect }) {
                             </button>
                             <button className="icon-btn" title="Move to Folder" onClick={(e) => { e.stopPropagation(); setMovingId(doc.id); setNewFolderName(doc.folder || ""); }}>
                               <FolderInput size={16} />
+                            </button>
+                            <button
+                              className="icon-btn"
+                              title="Reprocess"
+                              disabled={doc.processing_status === 'processing'}
+                              onClick={(e) => { e.stopPropagation(); handleReprocess(doc.id); }}
+                            >
+                              <RefreshCw size={16} />
                             </button>
                             <button className="icon-btn danger" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }}>
                               <Trash2 size={16} />

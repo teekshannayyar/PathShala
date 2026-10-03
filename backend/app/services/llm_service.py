@@ -1,7 +1,10 @@
+import functools
 import json
 import logging
-from typing import List, Dict
+from typing import Any, List, Dict, Optional
 
+# Importing groq is cheap and opens no connection; the client itself is only
+# created when an LLMService is built without one.
 from groq import BadRequestError, Groq
 
 from app.core.config import settings
@@ -21,10 +24,12 @@ def _is_json_validate_failed(err: BadRequestError) -> bool:
     return isinstance(body, dict) and body.get("code") == GROQ_JSON_VALIDATE_FAILED
 
 class LLMService:
-    def __init__(self):
-        # Connect to Groq using the API key from .env
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
-        self.model = settings.GROQ_MODEL
+    def __init__(self, client: Optional[Any] = None, model: Optional[str] = None):
+        # Tests inject a fake client; only build a real Groq client otherwise.
+        if client is None:
+            client = Groq(api_key=settings.GROQ_API_KEY)
+        self.client = client
+        self.model = model or settings.GROQ_MODEL
 
     def generate_response(self, prompt: str, context_chunks: List[Dict] = None, history: List[Dict] = None) -> str:
         """Takes a question and relevant context, and asks Groq for an answer."""
@@ -129,5 +134,7 @@ class LLMService:
             logger.warning("Quiz output invalid after retry: %s", e)
             raise QuizFormatError(f"Quiz generation failed after retry: {e}") from e
 
-# Create a single instance
-llm_service = LLMService()
+@functools.lru_cache(maxsize=1)
+def get_llm_service() -> LLMService:
+    """The app-wide service, created on first use rather than at import."""
+    return LLMService()

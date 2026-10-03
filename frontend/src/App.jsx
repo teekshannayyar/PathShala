@@ -24,21 +24,25 @@ function App() {
 
   // On mount, check if token exists to restore session
   useEffect(() => {
+    // Runs once on mount; the token is the only input. State is only set
+    // after the await, and not at all once unmounted.
+    let ignore = false;
     const validateSession = async () => {
       const token = localStorage.getItem('token');
-      if (token && !user) {
+      if (token) {
         try {
           const userData = await getCurrentUser();
-          setUser(userData);
+          if (!ignore) setUser(userData);
         } catch (error) {
           console.error("Token validation failed:", error);
           localStorage.removeItem('token');
         }
       }
-      setIsLoadingAuth(false);
+      if (!ignore) setIsLoadingAuth(false);
     };
-    
+
     validateSession();
+    return () => { ignore = true; };
   }, []);
 
   if (isLoadingAuth) {
@@ -60,7 +64,7 @@ function App() {
 
   const getAuthenticatedLayout = (children) => (
     <div className="app-layout">
-      <Navbar user={user} onLogout={handleLogout} setActiveDocument={setActiveDocument} />
+      <Navbar onLogout={handleLogout} setActiveDocument={setActiveDocument} />
       <div className="app-main">
         {location.pathname === '/chat' && (
           <Sidebar 

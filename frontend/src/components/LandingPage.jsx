@@ -1,5 +1,4 @@
-import React from 'react';
-import { BookOpen, Zap, Shield, Sparkles, ArrowRight, BrainCircuit, MessageSquare, Clock } from 'lucide-react';
+import { BookOpen, Zap, Shield, Sparkles, ArrowRight, BrainCircuit } from 'lucide-react';
 import './LandingPage.css';
 
 export default function LandingPage({ onLogin, onSignup }) {

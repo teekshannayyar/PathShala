@@ -1,7 +1,8 @@
 import datetime
+import logging
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -9,8 +10,10 @@ from app.api.deps import get_owned_document
 from app.api.routes.auth import get_current_user
 from app.models.database import get_db
 from app.models.models import ActivityLog, Message
-from app.services.embedding_service import embedding_service
-from app.services.llm_service import llm_service
+from app.services.embedding_service import EmbeddingService, get_embedding_service
+from app.services.llm_service import LLMService, get_llm_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,7 +38,13 @@ def get_chat_history(document_id: int, db: Session = Depends(get_db), current_us
     return db.query(Message).filter(Message.document_id == document_id).order_by(Message.created_at.asc()).all()
 
 @router.post("/", response_model=ChatResponse)
-def ask_question(request: ChatRequest, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
+def ask_question(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user),
+    llm_service: LLMService = Depends(get_llm_service),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
     relevant_chunks = []
     sources = []
     history = []
@@ -76,7 +85,11 @@ def ask_question(request: ChatRequest, db: Session = Depends(get_db), current_us
                 sources.append(res['text'][:100] + "...") 
 
     # Pass history, chunks, and question to the LLM
-    answer = llm_service.generate_response(request.question, context_chunks=relevant_chunks, history=history)
+    try:
+        answer = llm_service.generate_response(request.question, context_chunks=relevant_chunks, history=history)
+    except Exception:
+        logger.exception("LLM request failed")
+        raise HTTPException(status_code=502, detail="The AI service is unavailable, please try again")
     
     if request.document_id:
         # Save assistant message

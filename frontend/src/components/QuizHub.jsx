@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Target, AlertTriangle, Play, BookOpen, Clock, CheckCircle2, ChevronRight, Loader2, BookA } from 'lucide-react';
+import { Target, Play, Clock, CheckCircle2, ChevronRight, Loader2, BookA } from 'lucide-react';
 import { getQuizzes, getWeakTopics, generateQuiz, getDocuments, errorMessage } from '../api';
 import toast from 'react-hot-toast';
 import './QuizHub.css';

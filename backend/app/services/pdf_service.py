@@ -4,6 +4,7 @@ from typing import List, Tuple
 import pdfplumber
 
 from app.models.database import SessionLocal
+from app.services import embedding_service as embedding_service_module
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,6 @@ class PDFService:
         always ends up "ready" or "failed", never stuck in "processing".
         """
         from app.models.models import Document
-        from app.services.embedding_service import embedding_service
 
         db = SessionLocal()
         chunks_added = False
@@ -71,6 +71,8 @@ class PDFService:
                     return
 
                 chunks = PDFService.chunk_text(text)
+                # Looked up at call time so tests can swap in a fake service.
+                embedding_service = embedding_service_module.get_embedding_service()
                 embedding_service.delete_document(document_id)
                 embedding_service.add_chunks(document_id, chunks)
                 chunks_added = True

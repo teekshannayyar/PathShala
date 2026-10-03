@@ -95,7 +95,33 @@ npm run dev
 # Runs on http://localhost:5173
 `
 
-Database tables are auto-created on first backend startup. No manual migrations needed.
+### Database migrations (Alembic)
+
+The schema is managed by Alembic. The backend no longer creates tables on startup, so run migrations before the first start and after pulling schema changes. Run all commands from `backend/` (Alembic reads `DATABASE_URL` from `backend/.env`, not from `alembic.ini`).
+
+- **Fresh (empty) database:** `alembic upgrade head`
+- **Existing database created by the old auto-create startup:** run once, then use `alembic upgrade head` as usual:
+  ```bash
+  alembic stamp 0001_baseline && alembic upgrade head
+  ```
+  This works whether or not you ran the step 3 manual `ALTER TABLE documents ...` command. Migration `0002` adds `processing_status`/`processing_error` only if missing, marks embedded documents `ready`, and marks older unfinished ones `failed` with "Uploaded before processing fix; please reprocess" (use Reprocess in the Documents page).
+- **New schema change:** edit `app/models/models.py`, then `alembic revision --autogenerate -m "describe change"`, review the generated file, and `alembic upgrade head`.
+
+### Tests and offline development
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+createdb pathshala_test
+TEST_DATABASE_URL=postgresql+psycopg2://postgres:<password>@localhost:5432/pathshala_test pytest -q
+```
+
+- Tests need only a local Postgres. They rebuild the test database's schema with Alembic and truncate every table between tests, so `TEST_DATABASE_URL` must point at a database whose name ends in `_test` (the suite refuses to run otherwise).
+- No network is used: Groq is replaced by a fake client, embeddings use the deterministic `FakeEmbedder`, Chroma runs in memory, and outbound connections are blocked.
+- To run the app itself without downloading the embedding model, set `EMBEDDING_BACKEND=fake` in `backend/.env` (retrieval quality is much lower; chat answers still need a real `GROQ_API_KEY`).
+- Frontend checks: `cd frontend && npm run lint && npm run build`.
+
+CI (`.github/workflows/ci.yml`) runs the backend tests against a Postgres 16 service and the frontend lint and build on every pull request and on pushes to `master`.
 
 ---
 

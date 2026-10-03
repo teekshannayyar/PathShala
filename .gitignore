@@ -47,3 +47,6 @@ logs/
 
 # OS
 Thumbs.db
+
+# Tests
+.pytest_cache/

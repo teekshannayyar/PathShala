@@ -71,6 +71,7 @@ python -m venv venv
 venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 cp .env.example .env         # Fill in your values
+alembic upgrade head         # create/upgrade the schema (see HANDOFF.md for existing DBs)
 uvicorn app.main:app --reload
 ```
 

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getQuiz, submitQuiz } from '../api';
-import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './QuizTaker.css';
 

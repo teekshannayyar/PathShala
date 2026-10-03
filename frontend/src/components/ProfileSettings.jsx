@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Edit2, AlertTriangle, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Eye, EyeOff, Edit2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { deleteAccount } from '../api';
 import './ProfileSettings.css';
@@ -18,7 +17,6 @@ export default function ProfileSettings({ user, onLogout }) {
   const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const navigate = useNavigate();
 
   const handleSaveProfile = (e) => {
     e.preventDefault();

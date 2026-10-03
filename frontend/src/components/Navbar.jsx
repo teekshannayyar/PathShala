@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Plus, Settings, LogOut, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { uploadDocument, errorMessage } from '../api';
@@ -7,7 +7,7 @@ import './Navbar.css';
 
 const MAX_UPLOAD_MB = 50;
 
-export default function Navbar({ user, onLogout, setActiveDocument }) {
+export default function Navbar({ onLogout, setActiveDocument }) {
   const navigate = useNavigate();
   const location = useLocation();
   const fileInputRef = useRef(null);

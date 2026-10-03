@@ -6,10 +6,24 @@ export const api = axios.create({
   baseURL: `${API_BASE}/api`,
 });
 
+// The browser's IANA timezone (e.g. "Asia/Kolkata"), so study streaks count
+// the user's local days. The server falls back to UTC if it's missing.
+const browserTimeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+};
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const timeZone = browserTimeZone();
+  if (timeZone) {
+    config.headers['X-Timezone'] = timeZone;
   }
   return config;
 });

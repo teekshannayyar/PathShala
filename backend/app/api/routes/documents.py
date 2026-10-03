@@ -10,8 +10,12 @@ from app.services.pdf_service import PDFService
 from app.services.upload_service import max_upload_bytes, save_pdf_upload
 from app.api.routes.auth import get_current_user
 from app.core.config import settings
+from app.core.rate_limit import UPLOAD_LIMIT, limiter
+from app.core.timezone import get_user_tz
+from app.services.activity_service import record_activity
 from datetime import timedelta
 from typing import Annotated, List
+from zoneinfo import ZoneInfo
 import os
 
 # A document still "processing" after this long is assumed stuck (e.g. the
@@ -33,12 +37,14 @@ def get_documents(db: Session = Depends(get_db), current_user: int = Depends(get
     )
 
 @router.post("/upload", response_model=DocumentResponse)
+@limiter.limit(UPLOAD_LIMIT)
 async def upload_document(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user)
+    current_user: int = Depends(get_current_user),
+    tz: ZoneInfo = Depends(get_user_tz),
 ):
     # Fail fast on an oversized declared body; save_pdf_upload enforces the
     # real limit while streaming, since Content-Length can be absent or wrong.
@@ -67,17 +73,8 @@ async def upload_document(
         raise
 
     # Record permanent activity log for streak
-    from app.models.models import ActivityLog
-    import datetime
-    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-    existing_log = db.query(ActivityLog).filter(
-        ActivityLog.user_id == current_user,
-        ActivityLog.date_string == today_str
-    ).first()
-    
-    if not existing_log:
-        db.add(ActivityLog(user_id=current_user, date_string=today_str))
-        db.commit()
+    record_activity(db, current_user, tz)
+    db.commit()
 
     # Process it in the background
     background_tasks.add_task(PDFService.process_document, db_doc.id)

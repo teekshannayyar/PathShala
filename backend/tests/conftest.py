@@ -38,6 +38,18 @@ os.environ.update(
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",
         "ANONYMIZED_TELEMETRY": "False",
+        "CHROMA_MODE": "persistent",
+        "CHROMA_HOST": "",
+        "CHROMA_PORT": "8000",
+        "CHROMA_SSL": "false",
+        "CHROMA_API_KEY": "",
+        "CHROMA_TENANT": "",
+        "CHROMA_DATABASE": "",
+        "CHROMA_COLLECTION": "pathshala_docs",
+        # test_rate_limit.py switches the limiter on for its own tests.
+        "RATE_LIMIT_ENABLED": "false",
+        "RATE_LIMIT_STORAGE_URI": "",
+        "CLIENT_IP_HEADER": "",
     }
 )
 

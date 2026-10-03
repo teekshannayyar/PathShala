@@ -1,15 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List
 import json
 import logging
 import os
+from zoneinfo import ZoneInfo
 
 from app.api.deps import get_owned_document
 from app.models.database import get_db
 from app.models.models import Quiz, Question, QuizAttempt, QuestionAttempt
 from app.api.routes.auth import get_current_user
+from app.core.rate_limit import QUIZ_GENERATE_LIMIT, limiter
+from app.core.timezone import get_user_tz
+from app.services.activity_service import record_activity
 from app.services.llm_service import LLMService, get_llm_service
 from app.services.quiz_parser import QuizFormatError
 
@@ -30,7 +34,9 @@ class SubmitQuizRequest(BaseModel):
     answers: List[SubmitAnswerRequest]
 
 @router.post("/generate/{document_id}", response_model=QuizGenerationResponse)
+@limiter.limit(QUIZ_GENERATE_LIMIT)
 def generate_and_save_quiz(
+    request: Request,
     document_id: int,
     db: Session = Depends(get_db),
     current_user: int = Depends(get_current_user),
@@ -119,7 +125,13 @@ def get_quiz(quiz_id: int, db: Session = Depends(get_db), current_user: int = De
     }
 
 @router.post("/{quiz_id}/submit")
-def submit_quiz(quiz_id: int, request: SubmitQuizRequest, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
+def submit_quiz(
+    quiz_id: int,
+    request: SubmitQuizRequest,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user),
+    tz: ZoneInfo = Depends(get_user_tz),
+):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id, Quiz.user_id == current_user).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
@@ -166,11 +178,7 @@ def submit_quiz(quiz_id: int, request: SubmitQuizRequest, db: Session = Depends(
     attempt.score = correct_count
 
     # Also record ActivityLog for streak
-    from app.models.models import ActivityLog
-    import datetime
-    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-    if not db.query(ActivityLog).filter(ActivityLog.user_id == current_user, ActivityLog.date_string == today_str).first():
-        db.add(ActivityLog(user_id=current_user, date_string=today_str))
+    record_activity(db, current_user, tz)
     db.commit()
 
     return {

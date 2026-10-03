@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { BookOpen, Check, Eye, EyeOff, MessageSquare, Zap, Shield } from 'lucide-react';
-import axios from 'axios';
+import { login, register, googleLogin } from '../api';
 import './Auth.css';
+
+const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
 export default function Auth({ onLogin, defaultIsLogin = true }) {
   const [isLogin, setIsLogin] = useState(defaultIsLogin);
@@ -35,15 +37,11 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       }
     }
 
-    const endpoint = isLogin ? '/auth/login' : '/auth/register';
-    
     try {
-      const res = await axios.post(`http://127.0.0.1:8000/api${endpoint}`, {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password
-      });
-      onLogin(res.data.user, res.data.access_token);
+      const data = isLogin
+        ? await login({ email: formData.email, password: formData.password })
+        : await register({ name: formData.name, email: formData.email, password: formData.password });
+      onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.detail || 'Authentication failed. (Check backend terminal for exact error)');
@@ -52,10 +50,8 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      const res = await axios.post('http://127.0.0.1:8000/api/auth/google', {
-        credential: credentialResponse.credential
-      });
-      onLogin(res.data.user, res.data.access_token);
+      const data = await googleLogin(credentialResponse.credential);
+      onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
       setError('Login failed. Please make sure the backend is running.');
@@ -181,19 +177,23 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
             </button>
           </form>
 
-          <div className="auth-divider">
-            <span>or continue with</span>
-          </div>
+          {googleEnabled && (
+            <>
+              <div className="auth-divider">
+                <span>or continue with</span>
+              </div>
 
-          <div className="google-btn-wrapper">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => setError('Google Sign-In failed.')}
-              theme="outline"
-              size="large"
-              shape="rectangular"
-            />
-          </div>
+              <div className="google-btn-wrapper">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError('Google Sign-In failed.')}
+                  theme="outline"
+                  size="large"
+                  shape="rectangular"
+                />
+              </div>
+            </>
+          )}
 
           <div className="auth-toggle">
             {isLogin ? "Don't have an account? " : "Already have an account? "}

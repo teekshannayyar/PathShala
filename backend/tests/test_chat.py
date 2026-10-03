@@ -68,3 +68,17 @@ def test_llm_failure_is_a_clean_502(client, auth_headers, upload_pdf, fake_groq)
     resp = client.post("/api/chat/", headers=headers, json={"question": "Hi?", "document_id": doc_id})
     assert resp.status_code == 502
     assert "groq" not in resp.text.lower()
+
+
+def test_chat_question_must_be_1_to_4000_chars(client, auth_headers, upload_pdf, fake_llm, db):
+    headers = auth_headers()
+    doc_id = upload_pdf(headers).json()["id"]
+    for question in ["", "   \n ", "x" * 4001]:
+        resp = client.post("/api/chat/", headers=headers, json={"question": question, "document_id": doc_id})
+        assert resp.status_code == 422
+    assert fake_llm.calls == []
+    assert db.query(Message).count() == 0
+
+    resp = client.post("/api/chat/", headers=headers, json={"question": "  " + "x" * 4000 + "  ", "document_id": doc_id})
+    assert resp.status_code == 200
+    assert fake_llm.calls[0][1]["prompt"] == "x" * 4000

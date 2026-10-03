@@ -241,3 +241,117 @@
   color: var(--text-tertiary);
   margin-top: 12px;
 }
+
+/* ---------- Narrow screens ---------- */
+
+/* Flex children: let the chat shrink instead of pushing past the viewport. */
+.chat-container {
+  min-width: 0;
+}
+
+.input-form input[type="text"] {
+  min-width: 0;
+}
+
+.message-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Wide code scrolls inside the message, not the page. */
+.markdown-body pre {
+  overflow-x: auto;
+}
+
+/* A long document name is truncated instead of pushing the quiz button off-screen. */
+.chat-top-bar {
+  gap: 12px;
+}
+
+.chat-top-bar > div {
+  min-width: 0;
+}
+
+.chat-top-bar h3 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-top-bar > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  /* Room on the left for the sidebar toggle (inline styles set the padding). */
+  .chat-top-bar {
+    padding: 8px 12px 8px 60px !important;
+    min-height: 56px;
+    gap: 8px;
+  }
+
+  .chat-top-bar > button {
+    padding: 8px 12px !important;
+    min-height: 40px;
+  }
+
+  .chat-empty h2 {
+    font-size: 22px;
+    text-align: center;
+    padding: 0 16px;
+  }
+
+  .chat-messages {
+    padding: 20px 16px;
+    gap: 20px;
+  }
+
+  .message-row {
+    gap: 10px;
+  }
+
+  .message-content {
+    max-width: calc(100% - 42px);
+  }
+
+  .chat-input-area {
+    padding: 12px 12px 10px;
+  }
+
+  .chat-input-area.centered {
+    padding-bottom: 20vh;
+  }
+
+  .input-form {
+    gap: 6px;
+    padding: 4px 4px 4px 6px;
+  }
+
+  .attach-btn,
+  .send-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  /* 16px stops iOS Safari from zooming in when the input is focused. */
+  .input-form input[type="text"] {
+    font-size: 16px;
+  }
+
+  .chat-disclaimer {
+    margin-top: 8px;
+  }
+
+  /* Wide tables scroll sideways inside the message. */
+  .markdown-body table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .markdown-body th,
+  .markdown-body td {
+    overflow-wrap: normal;
+  }
+}

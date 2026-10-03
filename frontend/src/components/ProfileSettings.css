@@ -273,3 +273,46 @@
 .delete-account-btn:hover {
   background: #dc2626;
 }
+
+@media (max-width: 767px) {
+  .settings-page {
+    padding: 24px 16px;
+  }
+
+  .settings-header h2 {
+    font-size: 24px;
+  }
+
+  .settings-content {
+    padding: 20px 16px;
+    gap: 24px;
+  }
+
+  .user-email {
+    overflow-wrap: anywhere;
+  }
+
+  .form-group input {
+    font-size: 16px;
+  }
+
+  .password-input button {
+    right: 4px;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .save-btn,
+  .signout-btn,
+  .delete-account-btn,
+  .cancel-delete-btn,
+  .confirm-delete-btn {
+    min-height: 44px;
+  }
+
+  .delete-actions {
+    flex-wrap: wrap;
+  }
+}

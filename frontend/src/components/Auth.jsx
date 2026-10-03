@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { BookOpen, Check, Eye, EyeOff, MessageSquare, Zap, Shield } from 'lucide-react';
-import { login, register, googleLogin } from '../api';
+import { login, register, googleLogin, errorMessage } from '../api';
+import { passwordChecks, passwordProblem } from '../passwordRules';
 import './Auth.css';
 
 const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -19,18 +20,19 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
   };
 
   // Password validation checks
-  const hasMinLength = formData.password.length >= 8;
-  const hasUpper = /[A-Z]/.test(formData.password);
-  const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
-  const isPasswordValid = hasMinLength && hasUpper && hasSymbol;
+  const { hasMinLength, hasUpper, hasSymbol } = passwordChecks(formData.password);
 
   const handleManualAuth = async (e) => {
     e.preventDefault();
     setError('');
     
     if (!isLogin) {
-      if (!isPasswordValid) {
-        return setError('Please fulfill all password requirements.');
+      if (!formData.name.trim()) {
+        return setError('Please enter your name.');
+      }
+      const problem = passwordProblem(formData.password);
+      if (problem) {
+        return setError(problem);
       }
       if (formData.password !== formData.confirmPassword) {
         return setError('Passwords do not match.');
@@ -44,7 +46,7 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Authentication failed. (Check backend terminal for exact error)');
+      setError(errorMessage(err, 'Authentication failed. Please try again.'));
     }
   };
 
@@ -54,7 +56,7 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
-      setError('Login failed. Please make sure the backend is running.');
+      setError(errorMessage(err, 'Login failed. Please make sure the backend is running.'));
     }
   };
 

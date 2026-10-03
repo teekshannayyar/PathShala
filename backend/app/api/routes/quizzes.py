@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 import json
 import logging
@@ -23,7 +23,8 @@ class QuizGenerationResponse(BaseModel):
 
 class SubmitAnswerRequest(BaseModel):
     question_id: int
-    user_answer: str
+    # question_attempts.user_answer is String(255).
+    user_answer: str = Field(max_length=255)
 
 class SubmitQuizRequest(BaseModel):
     answers: List[SubmitAnswerRequest]
@@ -69,6 +70,7 @@ def generate_and_save_quiz(
                 options=json.dumps(q["options"]),
                 correct_answer=q["answer"],
                 topic=q["topic"],
+                explanation=q.get("explanation"),
             ))
         db.commit()
     except Exception:
@@ -98,8 +100,8 @@ def get_quiz(quiz_id: int, db: Session = Depends(get_db), current_user: int = De
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
         
-    questions = db.query(Question).filter(Question.quiz_id == quiz_id).all()
-    
+    questions = db.query(Question).filter(Question.quiz_id == quiz_id).order_by(Question.id).all()
+
     q_data = []
     for q in questions:
         q_data.append({
@@ -121,59 +123,60 @@ def submit_quiz(quiz_id: int, request: SubmitQuizRequest, db: Session = Depends(
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id, Quiz.user_id == current_user).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
-        
-    questions = db.query(Question).filter(Question.quiz_id == quiz_id).all()
+
+    questions = db.query(Question).filter(Question.quiz_id == quiz_id).order_by(Question.id).all()
     question_map = {q.id: q for q in questions}
-    
-    correct_count = 0
-    total_questions = len(questions)
-    
-    # Create attempt
-    attempt = QuizAttempt(quiz_id=quiz_id, user_id=current_user, score=0, total_questions=total_questions)
-    db.add(attempt)
-    db.commit()
-    db.refresh(attempt)
-    
-    results = []
-    
+
+    # One answer per question of this quiz; anything else would skew the
+    # score and the weak-topic stats.
+    answers: dict[int, str] = {}
     for ans in request.answers:
-        q = question_map.get(ans.question_id)
-        if not q: continue
-        
-        is_correct = (q.correct_answer == ans.user_answer)
+        if ans.question_id not in question_map:
+            raise HTTPException(status_code=400, detail="Answer for a question that is not in this quiz")
+        if ans.question_id in answers:
+            raise HTTPException(status_code=400, detail="More than one answer for the same question")
+        answers[ans.question_id] = ans.user_answer
+
+    attempt = QuizAttempt(quiz_id=quiz_id, user_id=current_user, score=0, total_questions=len(questions))
+    db.add(attempt)
+    db.flush()
+
+    correct_count = 0
+    results = []
+    # Every question is recorded; unanswered ones count as wrong.
+    for q in questions:
+        user_answer = answers.get(q.id)
+        is_correct = user_answer is not None and user_answer == q.correct_answer
         if is_correct:
             correct_count += 1
-            
-        q_attempt = QuestionAttempt(
+        db.add(QuestionAttempt(
             attempt_id=attempt.id,
             question_id=q.id,
-            user_answer=ans.user_answer,
-            is_correct=is_correct
-        )
-        db.add(q_attempt)
-        
+            user_answer=user_answer,
+            is_correct=is_correct,
+        ))
         results.append({
             "question_id": q.id,
+            "user_answer": user_answer,
             "is_correct": is_correct,
             "correct_answer": q.correct_answer,
-            "explanation": f"The correct answer was {q.correct_answer}."
+            "explanation": q.explanation,
         })
-        
+
     attempt.score = correct_count
-    db.commit()
-    
+
     # Also record ActivityLog for streak
     from app.models.models import ActivityLog
     import datetime
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     if not db.query(ActivityLog).filter(ActivityLog.user_id == current_user, ActivityLog.date_string == today_str).first():
         db.add(ActivityLog(user_id=current_user, date_string=today_str))
-        db.commit()
-        
+    db.commit()
+
     return {
         "attempt_id": attempt.id,
         "score": correct_count,
-        "total": total_questions,
+        "total": len(questions),
         "results": results
     }
 

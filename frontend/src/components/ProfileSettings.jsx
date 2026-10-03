@@ -1,12 +1,26 @@
 import { useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
 import { Eye, EyeOff, Edit2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { deleteAccount } from '../api';
+import { deleteAccount, updateProfile, changePassword, errorMessage } from '../api';
+import { MIN_PASSWORD_LENGTH, passwordProblem } from '../passwordRules';
 import './ProfileSettings.css';
 
-export default function ProfileSettings({ user, onLogout }) {
+const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
+export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
   const [displayName, setDisplayName] = useState(user?.name || '');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  // Google-only accounts have no password yet and set one without the current one.
+  const hasPassword = user?.has_password !== false;
+  const [currentPassword, setCurrentPassword] = useState('');
+  // Google-only accounts must sign in with Google again before setting a password.
+  const [googleCredential, setGoogleCredential] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -18,15 +32,62 @@ export default function ProfileSettings({ user, onLogout }) {
   const [isDeleting, setIsDeleting] = useState(false);
 
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    toast.success('Profile updated successfully!');
-    setIsEditingName(false);
+    const name = displayName.trim();
+    if (!name) {
+      toast.error('Display name cannot be empty.');
+      return;
+    }
+    setIsSavingName(true);
+    try {
+      const updated = await updateProfile(name);
+      setDisplayName(updated.name);
+      onUserUpdate?.({ ...user, ...updated });
+      setIsEditingName(false);
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      console.error("Update profile error:", error);
+      toast.error(errorMessage(error, 'Failed to update your name.'));
+    } finally {
+      setIsSavingName(false);
+    }
   };
 
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
-    toast.success('Password changed successfully!');
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match.');
+      return;
+    }
+    if (!hasPassword && !googleCredential) {
+      toast.error('Please confirm with Google before setting a password.');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      await changePassword(hasPassword
+        ? { currentPassword, newPassword }
+        : { newPassword, googleCredential });
+      setGoogleCredential(null);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      if (!hasPassword) onUserUpdate?.({ ...user, has_password: true });
+      toast.success(hasPassword ? 'Password changed successfully!' : 'Password set successfully!');
+    } catch (error) {
+      console.error("Change password error:", error);
+      // A Google credential is single-use from our side; ask for a fresh one.
+      if (!hasPassword) setGoogleCredential(null);
+      toast.error(errorMessage(error, 'Failed to change password.'));
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleDeleteAccount = async (e) => {
@@ -39,11 +100,10 @@ export default function ProfileSettings({ user, onLogout }) {
     setIsDeleting(true);
     try {
       await deleteAccount(deletePassword);
-      toast.success('Account permanently deleted.');
-      onLogout();
+      onLogout('Account permanently deleted.');
     } catch (error) {
       console.error("Delete account error:", error);
-      toast.error(error.response?.data?.detail || "Failed to delete account. Incorrect password?");
+      toast.error(errorMessage(error, "Failed to delete account. Incorrect password?"));
     } finally {
       setIsDeleting(false);
     }
@@ -71,6 +131,7 @@ export default function ProfileSettings({ user, onLogout }) {
                       type="text" 
                       value={displayName} 
                       onChange={(e) => setDisplayName(e.target.value)} 
+                      maxLength={255}
                       required
                       autoFocus
                     />
@@ -84,7 +145,11 @@ export default function ProfileSettings({ user, onLogout }) {
                   )}
                 </div>
               </div>
-              {isEditingName && <button type="submit" className="save-btn">Save changes</button>}
+              {isEditingName && (
+                <button type="submit" className="save-btn" disabled={isSavingName}>
+                  {isSavingName ? 'Saving...' : 'Save changes'}
+                </button>
+              )}
             </form>
           </section>
 
@@ -92,22 +157,55 @@ export default function ProfileSettings({ user, onLogout }) {
 
           {/* Change Password Section */}
           <section className="settings-section">
-            <h3>Change password</h3>
+            <h3>{hasPassword ? 'Change password' : 'Set a password'}</h3>
             <form onSubmit={handleChangePassword} className="settings-form">
+              {hasPassword && (
               <div className="form-group">
                 <label>Current password</label>
                 <div className="password-input">
-                  <input type={showCurrentPassword ? "text" : "password"} required />
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
                   <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}>
                     {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
+              )}
+              {!hasPassword && (
+              <div className="form-group">
+                <label>Confirm it's you</label>
+                {!googleEnabled ? (
+                  <p className="settings-note">Setting a password requires Google sign-in, which isn't configured on this server.</p>
+                ) : googleCredential ? (
+                  <p className="settings-note">Google sign-in confirmed. Choose your new password below.</p>
+                ) : (
+                  <GoogleLogin
+                    onSuccess={(response) => setGoogleCredential(response.credential || null)}
+                    onError={() => toast.error('Google sign-in failed.')}
+                    theme="outline"
+                    size="medium"
+                    text="continue_with"
+                  />
+                )}
+              </div>
+              )}
               
               <div className="form-group">
                 <label>New password</label>
                 <div className="password-input">
-                  <input type={showNewPassword ? "text" : "password"} required />
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={MIN_PASSWORD_LENGTH}
+                    required
+                  />
                   <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}>
                     {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -117,14 +215,26 @@ export default function ProfileSettings({ user, onLogout }) {
               <div className="form-group">
                 <label>Confirm new password</label>
                 <div className="password-input">
-                  <input type={showConfirmPassword ? "text" : "password"} required />
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    required
+                  />
                   <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                     {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
               
-              <button type="submit" className="save-btn">Update password</button>
+              <button
+                type="submit"
+                className="save-btn"
+                disabled={isChangingPassword || (!hasPassword && (!googleEnabled || !googleCredential))}
+              >
+                {isChangingPassword ? 'Saving...' : hasPassword ? 'Update password' : 'Set password'}
+              </button>
             </form>
           </section>
 

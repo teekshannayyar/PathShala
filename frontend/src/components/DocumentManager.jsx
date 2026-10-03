@@ -86,16 +86,16 @@ export default function DocumentManager({ onDocumentSelect }) {
   };
 
   const handleRename = async (id, currentName) => {
-    if (!editName.trim() || editName === currentName) {
+    if (!editName.trim() || editName.trim() === currentName) {
       setEditingId(null);
       return;
     }
     try {
-      await renameDocument(id, editName);
-      setDocuments(documents.map(d => d.id === id ? { ...d, filename: editName } : d));
+      const updated = await renameDocument(id, editName.trim());
+      setDocuments(docs => docs.map(d => d.id === id ? updated : d));
       toast.success("Renamed successfully");
-    } catch {
-      toast.error("Failed to rename");
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to rename"));
     } finally {
       setEditingId(null);
     }
@@ -104,11 +104,11 @@ export default function DocumentManager({ onDocumentSelect }) {
   const handleMoveFolder = async (id, folder) => {
     if (!folder.trim()) return;
     try {
-      await moveDocumentToFolder(id, folder);
-      setDocuments(documents.map(d => d.id === id ? { ...d, folder } : d));
-      toast.success(`Moved to ${folder}`);
-    } catch {
-      toast.error("Failed to move document");
+      const updated = await moveDocumentToFolder(id, folder.trim());
+      setDocuments(docs => docs.map(d => d.id === id ? updated : d));
+      toast.success(`Moved to ${updated.folder}`);
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to move document"));
     } finally {
       setMovingId(null);
       setNewFolderName("");
@@ -136,9 +136,10 @@ export default function DocumentManager({ onDocumentSelect }) {
     }
   };
 
+  // onDocumentSelect opens the document in /chat.
   const openInChat = (doc) => {
     if (onDocumentSelect) onDocumentSelect(doc);
-    navigate('/chat');
+    else navigate(`/chat?doc=${doc.id}`);
   };
 
   // Group by folder
@@ -187,7 +188,7 @@ export default function DocumentManager({ onDocumentSelect }) {
                   <div className="folder-title" onClick={() => toggleSelectAll(folderDocs)}>
                     {allSelected ? <CheckSquare size={18} className="text-accent" /> : <Square size={18} className={someSelected ? "text-accent" : ""} />}
                     <Folder className="text-accent" size={20} />
-                    <h3>{folder}</h3>
+                    <h3 title={folder}>{folder}</h3>
                     <span className="badge">{folderDocs.length}</span>
                   </div>
                 </div>
@@ -207,6 +208,7 @@ export default function DocumentManager({ onDocumentSelect }) {
                             type="text" 
                             className="inline-edit-input"
                             value={editName}
+                            maxLength={255}
                             onChange={(e) => setEditName(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => {
@@ -238,6 +240,7 @@ export default function DocumentManager({ onDocumentSelect }) {
                               type="text" 
                               placeholder="New or existing folder..." 
                               value={newFolderName}
+                              maxLength={100}
                               onChange={e => setNewFolderName(e.target.value)}
                               className="folder-input"
                               onKeyDown={(e) => {

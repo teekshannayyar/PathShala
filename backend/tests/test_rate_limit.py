@@ -37,10 +37,10 @@ def test_eleventh_login_in_a_minute_is_429(client, rate_limits_on):
 
 def test_each_auth_endpoint_has_its_own_counter(client, rate_limits_on):
     for i in range(10):
-        resp = client.post("/api/auth/register", json={"email": f"u{i}@example.com", "password": "short"})
-        # Rejected by password validation, but still counted by the limiter.
-        assert resp.status_code == 422
-    assert client.post("/api/auth/register", json={"email": "u@example.com", "password": "short"}).status_code == 429
+        # Rejected by the handler's strength check (no capital), but still counted.
+        resp = client.post("/api/auth/register", json={"name": "Student", "email": f"u{i}@example.com", "password": "longenough-1"})
+        assert resp.status_code == 400
+    assert client.post("/api/auth/register", json={"name": "Student", "email": "u@example.com", "password": "longenough-1"}).status_code == 429
 
     # A different endpoint has its own counter.
     assert _login(client).status_code == 401

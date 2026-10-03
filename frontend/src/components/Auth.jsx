@@ -3,6 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { Link } from 'react-router-dom';
 import { BookOpen, Check, Eye, EyeOff, MessageSquare, ListChecks, Target } from 'lucide-react';
 import { login, register, googleLogin, errorMessage } from '../api';
+import { passwordChecks, passwordProblem } from '../passwordRules';
 import './Auth.css';
 
 const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -20,19 +21,19 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
   };
 
   // Password validation checks
-  const hasMinLength = formData.password.length >= 8;
-  const hasUpper = /[A-Z]/.test(formData.password);
-  // Any character that isn't a letter or digit counts as a symbol (incl. - and _).
-  const hasSymbol = /[^A-Za-z0-9]/.test(formData.password);
-  const isPasswordValid = hasMinLength && hasUpper && hasSymbol;
+  const { hasMinLength, hasUpper, hasSymbol } = passwordChecks(formData.password);
 
   const handleManualAuth = async (e) => {
     e.preventDefault();
     setError('');
     
     if (!isLogin) {
-      if (!isPasswordValid) {
-        return setError('Please fulfill all password requirements.');
+      if (!formData.name.trim()) {
+        return setError('Please enter your name.');
+      }
+      const problem = passwordProblem(formData.password);
+      if (problem) {
+        return setError(problem);
       }
       if (formData.password !== formData.confirmPassword) {
         return setError('Passwords do not match.');

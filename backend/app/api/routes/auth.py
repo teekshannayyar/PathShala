@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from google.oauth2 import id_token
 from google.auth.transport import requests
 import bcrypt
+import re
 import jwt
 import datetime
 
@@ -42,7 +43,7 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    name: Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)] = ""
+    name: Name
 
 
 class UpdateProfileRequest(BaseModel):
@@ -110,11 +111,17 @@ def get_current_user(authorization: str = Header(None), db: Session = Depends(ge
 
 
 def validate_new_password(password: str) -> None:
-    # bcrypt only uses the first 72 bytes and bcrypt>=5 raises beyond that.
+    """The signup rules, for every new password. The frontend checks the
+    same ones (Auth.jsx, ProfileSettings.jsx)."""
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+    # bcrypt only uses the first 72 bytes and bcrypt>=5 raises beyond that.
     if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
         raise HTTPException(status_code=400, detail=f"Password must be at most {MAX_PASSWORD_BYTES} bytes")
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(status_code=400, detail="Password must contain an uppercase letter")
+    if not re.search(r"[^A-Za-z0-9]", password):
+        raise HTTPException(status_code=400, detail="Password must contain a symbol")
 
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode('utf-8')
@@ -289,8 +296,10 @@ def get_user_stats(
 
     user_id = get_current_user(authorization, db)
 
-    # Total documents analyzed
-    total_docs = db.query(Document).filter(Document.owner_id == user_id).count()
+    # Total documents analyzed (processed successfully)
+    total_docs = db.query(Document).filter(
+        Document.owner_id == user_id, Document.processing_status == "ready"
+    ).count()
 
     # Active chats (documents with messages)
     active_chats = db.query(Document).join(Message).filter(Document.owner_id == user_id).distinct().count()

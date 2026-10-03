@@ -20,8 +20,8 @@ export default function Dashboard({ onDocumentSelect }) {
   }, []);
 
   const handleNewUploadClick = () => {
+    // Opens an empty /chat.
     onDocumentSelect(null);
-    navigate('/chat');
   };
 
   return (

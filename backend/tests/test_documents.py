@@ -5,7 +5,7 @@ from pdf_utils import make_pdf
 
 from app.core.config import settings
 from app.models.models import Document
-from app.services.pdf_service import NO_TEXT_ERROR
+from app.services.pdf_service import NO_TEXT_ERROR, PROCESSING_FAILED_ERROR
 
 UUID_PDF = re.compile(r"^[0-9a-f]{32}\.pdf$")
 
@@ -94,16 +94,23 @@ def test_blank_pdf_is_marked_failed(client, auth_headers, upload_pdf, db):
     assert doc.embedding_complete is False
 
 
-def test_embedding_failure_is_marked_failed(client, auth_headers, upload_pdf, fake_embedding_service, monkeypatch, db):
+def test_embedding_failure_is_marked_failed(client, auth_headers, upload_pdf, fake_embedding_service, monkeypatch, db, caplog):
     def boom(document_id, chunks):
-        raise RuntimeError("vector store unavailable")
+        raise RuntimeError("vector store unavailable at 10.0.0.5:8000")
 
     monkeypatch.setattr(fake_embedding_service, "add_chunks", boom)
-    resp = upload_pdf(auth_headers())
+    headers = auth_headers()
+    with caplog.at_level("ERROR", logger="app.services.pdf_service"):
+        resp = upload_pdf(headers)
     doc = db.get(Document, resp.json()["id"])
     assert doc.processing_status == "failed"
-    assert "vector store unavailable" in doc.processing_error
     assert doc.embedding_complete is False
+    # The user gets a friendly message; the real exception only goes to the log.
+    assert doc.processing_error == PROCESSING_FAILED_ERROR
+    listed = client.get("/api/documents/", headers=headers).json()[0]
+    assert listed["processing_error"] == PROCESSING_FAILED_ERROR
+    assert "10.0.0.5" not in str(listed)
+    assert any(r.exc_info and "vector store unavailable" in str(r.exc_info[1]) for r in caplog.records)
 
 
 def test_reprocess_recovers_a_failed_document(client, auth_headers, upload_pdf, fake_embedding_service, monkeypatch, db):

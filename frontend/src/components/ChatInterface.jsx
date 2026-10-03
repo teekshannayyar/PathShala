@@ -73,7 +73,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
         if (ignore) return;
         if (error?.response?.status === 404) {
           toast.error('That document no longer exists.', { id: 'doc-missing' });
-          setActiveDocument(null);
+          setActiveDocument(null, { replace: true });
         } else {
           console.error("Failed to load history", error);
         }
@@ -129,7 +129,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       console.error("Chat error", error);
       if (error?.response?.status === 404 && sentFor !== null) {
         toast.error('That document no longer exists.', { id: 'doc-missing' });
-        setActiveDocument(null);
+        setActiveDocument(null, { replace: true });
         return;
       }
       toast.error(errorMessage(error, "Network error: Failed to get response from AI"));
@@ -181,7 +181,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {activeDocument ? (
-            <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary)' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary)' }} title={activeDocument.filename}>
               {activeDocument.filename.replace('.pdf', '')}
             </h3>
           ) : (

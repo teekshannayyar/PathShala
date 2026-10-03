@@ -85,7 +85,7 @@ export default function QuizHub() {
       <div className="quiz-header">
         <div>
           <h1>Quizzes</h1>
-          <p>Generate a 10-question quiz from a document, take it, and see which topics you score lowest on.</p>
+          <p>Generate a quiz of up to 10 questions from a document, take it, and see which topics you score lowest on.</p>
         </div>
         
         <div className="quiz-generate-card glass">

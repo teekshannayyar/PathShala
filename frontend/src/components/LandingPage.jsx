@@ -16,7 +16,7 @@ const FEATURES = [
   {
     icon: ListChecks,
     title: 'Generate quizzes',
-    text: 'Create a 10-question multiple-choice quiz from a document. After you submit it, you see the correct answer to every question, with a short explanation when one was generated.',
+    text: 'Create a multiple-choice quiz of up to 10 questions from a document. After you submit it, you see the correct answer to every question, with a short explanation when one was generated.',
   },
   {
     icon: Target,

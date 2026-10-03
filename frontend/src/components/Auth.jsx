@@ -57,7 +57,7 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
-      setError(errorMessage(err, 'Login failed. Please make sure the backend is running.'));
+      setError(errorMessage(err, 'Google sign-in failed. Please try again.'));
     }
   };
 
@@ -77,7 +77,7 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
             </div>
             <div className="auth-feature-item">
               <div className="feature-icon-box"><ListChecks size={18} /></div>
-              <span>Generate 10-question quizzes from a document</span>
+              <span>Generate multiple-choice quizzes of up to 10 questions from a document</span>
             </div>
             <div className="auth-feature-item">
               <div className="feature-icon-box"><Target size={18} /></div>

@@ -136,7 +136,7 @@ export default function ChatInterface({ activeDocument, setActiveDocument }) {
       addReply(sentFor, {
         id: Date.now().toString(),
         role: 'assistant',
-        content: "Sorry, I encountered an error trying to answer that. Make sure the backend is running.",
+        content: "Sorry, something went wrong while answering that. Please try again.",
         sources: []
       });
     } finally {

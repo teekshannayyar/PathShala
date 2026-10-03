@@ -73,6 +73,11 @@ export default function PrivacyPolicy() {
           Each request to PathShala includes your browser&apos;s time zone name (for example
           Asia/Kolkata) so that streaks follow your local days. The time zone itself is not saved.
         </li>
+        <li>
+          Two small interface settings are also kept in your browser: in local storage, whether you
+          chose to skip the delete confirmation for chats, and in session storage, a one-time notice
+          shown after your account is deleted.
+        </li>
         <li>The PathShala code does not include analytics or advertising scripts.</li>
       </ul>
 

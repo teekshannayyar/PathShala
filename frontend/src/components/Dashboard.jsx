@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, MessageSquare, Zap, Clock, ChevronRight, UploadCloud, Sparkles, TrendingUp } from 'lucide-react';
+import { FileText, MessageSquare, Zap, ChevronRight, UploadCloud, TrendingUp } from 'lucide-react';
 import { getDocuments, getUserStats } from '../api';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
@@ -117,7 +117,6 @@ export default function Dashboard({ onDocumentSelect }) {
           <div className="dashboard-panel glass quick-start-panel">
             <div className="panel-header">
               <h3>Quick Start</h3>
-              <Sparkles size={16} className="panel-icon accent" />
             </div>
             
             <div className="quick-actions">
@@ -138,13 +137,6 @@ export default function Dashboard({ onDocumentSelect }) {
                   </div>
                 </button>
               )}
-            </div>
-            
-            <div className="learning-tip">
-              <div className="tip-header">
-                <Clock size={14} /> <span>Pro Tip</span>
-              </div>
-              <p>Ask PathShala to "summarize the key points" of any document to quickly grasp the core concepts.</p>
             </div>
           </div>
         </div>

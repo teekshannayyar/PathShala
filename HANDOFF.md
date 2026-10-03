@@ -13,7 +13,7 @@ Setup, tests and the full environment variable reference live in [README.md](REA
 A PDF-based AI study assistant (a RAG app). Users upload study PDFs, then:
 
 - chat with a document, with answers grounded in its most relevant passages (Groq, default model `openai/gpt-oss-20b`)
-- generate 10-question multiple-choice quizzes with explanations, take them, and see weak topics
+- generate multiple-choice quizzes of up to 10 questions with explanations, take them, and see weak topics
 - track study streaks in their own timezone
 - organise documents into folders, rename them, bulk-delete them, and reprocess failed ones
 
@@ -104,7 +104,7 @@ PathShala/
             ├── embedding_service.py   # embedder choice, Chroma client factory (4 modes), search/upsert/delete
             ├── fake_embedder.py       # deterministic hash embedder (EMBEDDING_BACKEND=fake, tests)
             ├── llm_service.py         # Groq wrapper: chat answer, quiz generation with one retry
-            ├── quiz_parser.py         # validates the quiz JSON (10 questions, 4 distinct options, answer in options)
+            ├── quiz_parser.py         # validates the quiz JSON (keeps up to 10 valid questions, needs at least 8; 4 distinct options, answer in options)
             ├── upload_service.py      # PDF checks + streamed save under a random name
             └── activity_service.py    # record_activity: marks today (user's timezone) as a study day
 ```
@@ -220,7 +220,7 @@ All under `/api` except `/health`. "Auth" means `Authorization: Bearer <JWT>`. D
 
 | Method | Path | Auth | Limit | Notes |
 |--------|------|------|-------|-------|
-| POST | `/register` | – | 10/min | `{email, password, name?}`. Valid email required; password 8+ characters, at most 72 bytes. |
+| POST | `/register` | – | 10/min | `{email, password, name}`. Valid email and a non-blank name required; password 8+ characters, at most 72 bytes, with an uppercase letter and a symbol. |
 | POST | `/login` | – | 10/min | `{email, password}`. One 401 message for every failure, so it doesn't reveal which emails exist. |
 | POST | `/google` | – | 10/min | `{credential}` (Google ID token). Creates the user on first sign-in; signs in to an existing account with the same email. |
 | GET | `/me` | yes | – | `{id, email, name, picture, has_password, tier}`; `tier` is always `free` for now. |
@@ -309,11 +309,10 @@ Config only; nothing has been deployed.
 5. **In-memory rate-limit storage:** counters are per process and reset on restart. With several workers or instances each has its own counters, so the real limit multiplies. Set `RATE_LIMIT_STORAGE_URI=redis://...` (and install `redis`) for shared counters.
 6. **Uploads need a persistent disk:** PDFs are stored on the local filesystem (and so are vectors in `persistent` Chroma mode). On an ephemeral filesystem they disappear on redeploy, which breaks reprocessing and leaves chat without context. Multiple instances can't share a Render disk.
 7. **Background processing is in-process:** a restart mid-processing leaves the document in `processing`; Reprocess accepts it once it's been untouched for 10 minutes. There's no job queue or retry.
-8. **Password rules differ:** the signup form asks for an uppercase letter and a symbol, but the API only enforces 8+ characters and at most 72 bytes.
-9. **Quizzes see only the start of a document:** generation uses the first 15,000 characters of the extracted text.
-10. **Unused columns:** `documents.summary` and `documents.key_concepts` exist but nothing fills them; `/me` returns `tier: "free"` as a placeholder for billing.
-11. **Chats without a document aren't saved.**
-12. **Vite import errors after a fresh install:** if `react-markdown` imports fail, delete `frontend/node_modules/.vite` and restart `npm run dev`.
+8. **Quizzes see only the start of a document:** generation uses the first 15,000 characters of the extracted text.
+9. **Unused columns:** `documents.summary` and `documents.key_concepts` exist but nothing fills them; `/me` returns `tier: "free"` as a placeholder for billing.
+10. **Chats without a document aren't saved.**
+11. **Vite import errors after a fresh install:** if `react-markdown` imports fail, delete `frontend/node_modules/.vite` and restart `npm run dev`.
 
 ---
 
@@ -323,7 +322,6 @@ Config only; nothing has been deployed.
 
 - Shared rate-limit storage (Redis) once there's more than one worker
 - Token versioning on `users` so password changes revoke old sessions
-- Server-side password strength matching the signup form
 - Unique index on `lower(email)` after cleaning up legacy duplicates
 - Object storage for uploads and Chroma Cloud/HTTP for vectors, so the API can scale past one instance
 - A real job queue for PDF processing

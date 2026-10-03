@@ -79,7 +79,8 @@ class Question(Base):
     options = Column(Text, nullable=False) # Store JSON string of options
     correct_answer = Column(String(255), nullable=False)
     topic = Column(String(100), nullable=False)
-    
+    explanation = Column(Text, nullable=True)
+
     quiz = relationship("Quiz", back_populates="questions")
 
 class QuizAttempt(Base):

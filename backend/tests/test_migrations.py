@@ -92,3 +92,18 @@ def test_0002_is_idempotent_after_step3_manual_alter():
         2: ("failed", LEGACY),
         3: ("failed", LEGACY),
     }
+
+
+def test_0003_adds_and_removes_question_explanation():
+    cfg = alembic_config()
+
+    def question_columns() -> set:
+        return {c["name"] for c in inspect(engine).get_columns("questions")}
+
+    try:
+        command.downgrade(cfg, "0002_document_processing_status")
+        assert "explanation" not in question_columns()
+        command.upgrade(cfg, "0003_question_explanation")
+        assert "explanation" in question_columns()
+    finally:
+        command.upgrade(cfg, "head")

@@ -48,6 +48,8 @@ class UpdateProfileRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: Optional[str] = None
     new_password: str
+    # Google-only accounts prove it's really them with a fresh Google ID token.
+    google_credential: Optional[str] = None
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -151,17 +153,21 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": user.email, "user_id": user.id})
     return {"access_token": access_token, "user": user_payload(user)}
 
+def verify_google_credential(credential: str) -> dict:
+    """Verify a Google ID token for our client. Raises ValueError if invalid."""
+    idinfo = id_token.verify_oauth2_token(
+        credential,
+        requests.Request(),
+        settings.GOOGLE_CLIENT_ID
+    )
+    if idinfo['aud'] != settings.GOOGLE_CLIENT_ID:
+        raise ValueError('Could not verify audience.')
+    return idinfo
+
 @router.post("/google", response_model=LoginResponse)
 def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
     try:
-        idinfo = id_token.verify_oauth2_token(
-            request.credential, 
-            requests.Request(), 
-            settings.GOOGLE_CLIENT_ID
-        )
-
-        if idinfo['aud'] != settings.GOOGLE_CLIENT_ID:
-            raise ValueError('Could not verify audience.')
+        idinfo = verify_google_credential(request.credential)
 
         email = normalize_email(idinfo['email'])
         name = idinfo.get('name', '')
@@ -211,11 +217,22 @@ def change_password(
     current_user: int = Depends(get_current_user),
 ):
     user = db.get(User, current_user)
-    # Google-only accounts have no password yet and may set one directly.
-    # A wrong current password is 403, not 401: the session itself is valid.
+    # Failures are 403, not 401: the session itself is valid.
     if user.hashed_password:
         if not request.current_password or not verify_password(request.current_password, user.hashed_password):
             raise HTTPException(status_code=403, detail="Current password is incorrect")
+    else:
+        # A Google-only account has no password to check, and a stolen
+        # session token alone must not be enough to add a permanent one:
+        # require a fresh Google sign-in for this same account.
+        if not request.google_credential:
+            raise HTTPException(status_code=403, detail="Sign in with Google again to set a password")
+        try:
+            idinfo = verify_google_credential(request.google_credential)
+        except Exception:
+            raise HTTPException(status_code=403, detail="Google sign-in could not be verified")
+        if normalize_email(str(idinfo.get("email") or "")) != normalize_email(user.email):
+            raise HTTPException(status_code=403, detail="That Google account does not match this account")
     validate_new_password(request.new_password)
     user.hashed_password = hash_password(request.new_password)
     db.commit()

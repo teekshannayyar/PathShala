@@ -99,10 +99,11 @@ export const updateProfile = async (name) => {
   return response.data;
 };
 
-export const changePassword = async ({ currentPassword, newPassword }) => {
+export const changePassword = async ({ currentPassword, newPassword, googleCredential }) => {
   const response = await api.put('/auth/me/password', {
     current_password: currentPassword || null,
     new_password: newPassword,
+    google_credential: googleCredential || null,
   });
   return response.data;
 };

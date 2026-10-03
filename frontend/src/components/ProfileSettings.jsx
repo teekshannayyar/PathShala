@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
 import { Eye, EyeOff, Edit2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { deleteAccount, updateProfile, changePassword, errorMessage } from '../api';
 import './ProfileSettings.css';
 
+const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_BYTES = 72;
 
@@ -15,6 +17,8 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
   // Google-only accounts have no password yet and set one without the current one.
   const hasPassword = user?.has_password !== false;
   const [currentPassword, setCurrentPassword] = useState('');
+  // Google-only accounts must sign in with Google again before setting a password.
+  const [googleCredential, setGoogleCredential] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -65,9 +69,16 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
       toast.error('New passwords do not match.');
       return;
     }
+    if (!hasPassword && !googleCredential) {
+      toast.error('Please confirm with Google before setting a password.');
+      return;
+    }
     setIsChangingPassword(true);
     try {
-      await changePassword({ currentPassword: hasPassword ? currentPassword : null, newPassword });
+      await changePassword(hasPassword
+        ? { currentPassword, newPassword }
+        : { newPassword, googleCredential });
+      setGoogleCredential(null);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -75,6 +86,8 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
       toast.success(hasPassword ? 'Password changed successfully!' : 'Password set successfully!');
     } catch (error) {
       console.error("Change password error:", error);
+      // A Google credential is single-use from our side; ask for a fresh one.
+      if (!hasPassword) setGoogleCredential(null);
       toast.error(errorMessage(error, 'Failed to change password.'));
     } finally {
       setIsChangingPassword(false);
@@ -168,6 +181,24 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
                 </div>
               </div>
               )}
+              {!hasPassword && (
+              <div className="form-group">
+                <label>Confirm it's you</label>
+                {!googleEnabled ? (
+                  <p className="settings-note">Setting a password requires Google sign-in, which isn't configured on this server.</p>
+                ) : googleCredential ? (
+                  <p className="settings-note">Google sign-in confirmed. Choose your new password below.</p>
+                ) : (
+                  <GoogleLogin
+                    onSuccess={(response) => setGoogleCredential(response.credential || null)}
+                    onError={() => toast.error('Google sign-in failed.')}
+                    theme="outline"
+                    size="medium"
+                    text="continue_with"
+                  />
+                )}
+              </div>
+              )}
               
               <div className="form-group">
                 <label>New password</label>
@@ -202,7 +233,11 @@ export default function ProfileSettings({ user, onUserUpdate, onLogout }) {
                 </div>
               </div>
               
-              <button type="submit" className="save-btn" disabled={isChangingPassword}>
+              <button
+                type="submit"
+                className="save-btn"
+                disabled={isChangingPassword || (!hasPassword && (!googleEnabled || !googleCredential))}
+              >
                 {isChangingPassword ? 'Saving...' : hasPassword ? 'Update password' : 'Set password'}
               </button>
             </form>

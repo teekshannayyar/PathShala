@@ -1,3 +1,4 @@
+import pytest
 from conftest import TEST_PASSWORD
 
 from app.models.models import Document, User
@@ -204,19 +205,85 @@ def test_change_password_enforces_length_rules(client, auth_headers):
         assert resp.status_code == 400
 
 
-def test_google_only_user_can_set_password_without_current(client, db):
+@pytest.fixture
+def google_only(client, db):
     from app.api.routes.auth import create_access_token
 
     user = User(email="g@example.com", name="G")
     db.add(user)
     db.commit()
-    headers = {"Authorization": f"Bearer {create_access_token({'sub': user.email, 'user_id': user.id})}"}
-    assert client.get("/api/auth/me", headers=headers).json()["has_password"] is False
+    return {"Authorization": f"Bearer {create_access_token({'sub': user.email, 'user_id': user.id})}"}
 
-    resp = client.put("/api/auth/me/password", headers=headers, json={"new_password": "first-password"})
+
+@pytest.fixture
+def google_token(monkeypatch):
+    """Stub Google verification: credential 'good:<email>' verifies as <email>."""
+    from app.api.routes import auth as auth_routes
+
+    calls = []
+
+    def verify(credential, request, audience):
+        calls.append(credential)
+        if not credential.startswith("good:"):
+            raise ValueError("Token used too late")
+        return {"aud": audience, "email": credential[len("good:"):], "name": "G"}
+
+    monkeypatch.setattr(auth_routes.id_token, "verify_oauth2_token", verify)
+    return calls
+
+
+def test_google_only_user_needs_google_credential_to_set_password(client, google_only, google_token):
+    assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is False
+    resp = client.put("/api/auth/me/password", headers=google_only, json={"new_password": "first-password"})
+    assert resp.status_code == 403
+    resp = client.put(
+        "/api/auth/me/password",
+        headers=google_only,
+        json={"new_password": "first-password", "google_credential": "expired-or-forged"},
+    )
+    assert resp.status_code == 403
+    assert _login(client, "g@example.com", "first-password").status_code == 401
+
+
+def test_google_credential_for_another_email_is_403(client, google_only, google_token):
+    resp = client.put(
+        "/api/auth/me/password",
+        headers=google_only,
+        json={"new_password": "first-password", "google_credential": "good:attacker@example.com"},
+    )
+    assert resp.status_code == 403
+    assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is False
+
+
+def test_google_only_user_sets_password_with_fresh_google_credential(client, google_only, google_token):
+    resp = client.put(
+        "/api/auth/me/password",
+        headers=google_only,
+        json={"new_password": "first-password", "google_credential": "good:G@Example.com"},
+    )
     assert resp.status_code == 200, resp.text
+    assert google_token == ["good:G@Example.com"]
     assert _login(client, "g@example.com", "first-password").status_code == 200
-    assert client.get("/api/auth/me", headers=headers).json()["has_password"] is True
+    assert client.get("/api/auth/me", headers=google_only).json()["has_password"] is True
+
+
+def test_password_users_do_not_need_google(client, auth_headers, google_token):
+    headers = auth_headers("pw@example.com")
+    resp = client.put(
+        "/api/auth/me/password",
+        headers=headers,
+        json={"current_password": TEST_PASSWORD, "new_password": "brand-new-password"},
+    )
+    assert resp.status_code == 200
+    # A Google credential can't stand in for the current password.
+    resp = client.put(
+        "/api/auth/me/password",
+        headers=headers,
+        json={"new_password": "another-password", "google_credential": "good:pw@example.com"},
+    )
+    assert resp.status_code == 403
+    assert google_token == []
+    assert _login(client, "pw@example.com", "brand-new-password").status_code == 200
 
 
 # --- Stats ------------------------------------------------------------------

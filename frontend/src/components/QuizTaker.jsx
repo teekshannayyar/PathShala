@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getQuiz, submitQuiz } from '../api';
+import { getQuiz, submitQuiz, errorMessage } from '../api';
 import { Loader2, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './QuizTaker.css';
@@ -66,7 +66,7 @@ export default function QuizTaker() {
       toast.success("Quiz graded!", { id: 'submit' });
     } catch (error) {
       console.error(error);
-      toast.error("Failed to submit quiz", { id: 'submit' });
+      toast.error(errorMessage(error, "Failed to submit quiz"), { id: 'submit' });
     } finally {
       setIsSubmitting(false);
     }
@@ -85,7 +85,7 @@ export default function QuizTaker() {
 
   // Render Results View
   if (results) {
-    const percentage = Math.round((results.score / results.total) * 100);
+    const percentage = results.total > 0 ? Math.round((results.score / results.total) * 100) : 0;
     return (
       <div className="quiz-taker-container animate-fade-in">
         <div className="quiz-results-header glass">
@@ -127,6 +127,9 @@ export default function QuizTaker() {
                     );
                   })}
                 </div>
+                {res?.explanation && (
+                  <p className="q-explanation" style={{ marginTop: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}><strong>Explanation:</strong> {res.explanation}</p>
+                )}
               </div>
             );
           })}

@@ -30,18 +30,21 @@ export default function QuizHub() {
         const readyDocs = docsData.filter(d => d.processing_status === 'ready');
         setDocuments(readyDocs);
         
-        // Pre-select document if navigated with ?generate=docId, but don't auto-generate
+        // Pre-select the document from ?generate=docId (never auto-generate),
+        // but only if it is one of the ready documents shown in the dropdown.
         const params = new URLSearchParams(location.search);
         const generateId = params.get('generate');
-        if (generateId) {
-          setSelectedDocId(generateId);
-        } else if (readyDocs.length > 0) {
-          setSelectedDocId(readyDocs[0].id.toString());
+        const requested = readyDocs.find(d => d.id.toString() === generateId);
+        if (requested) {
+          setSelectedDocId(requested.id.toString());
+        } else {
+          if (generateId) toast.error("That document isn't ready for a quiz; pick one from the list.", { id: 'quiz-doc' });
+          setSelectedDocId(readyDocs.length > 0 ? readyDocs[0].id.toString() : '');
         }
 
       } catch (error) {
         console.error("Failed to load quiz data", error);
-        toast.error("Failed to load quiz dashboard");
+        toast.error(errorMessage(error, "Failed to load quiz dashboard"));
       } finally {
         setIsLoading(false);
       }
@@ -49,8 +52,9 @@ export default function QuizHub() {
     fetchData();
   }, [location.search]);
 
-  const handleGenerateNew = async (docIdToUse) => {
-    const docId = docIdToUse || parseInt(selectedDocId);
+  // Always generates for the document shown in the dropdown.
+  const handleGenerateNew = async () => {
+    const docId = documents.some(d => d.id.toString() === selectedDocId) ? parseInt(selectedDocId, 10) : null;
     if (!docId) return toast.error("Please select a document first");
 
     setIsGenerating(true);
@@ -99,7 +103,7 @@ export default function QuizHub() {
             <button 
               className="generate-btn" 
               disabled={isGenerating || !selectedDocId}
-              onClick={() => handleGenerateNew(null)}
+              onClick={handleGenerateNew}
             >
               {isGenerating ? <Loader2 size={16} className="spin" /> : <Play size={16} />}
               Generate Quiz
@@ -161,7 +165,7 @@ export default function QuizHub() {
                 <div key={quiz.id} className="quiz-card glass">
                   <div className="quiz-card-header">
                     <h4>{quiz.title}</h4>
-                    <span className="quiz-attempts">{quiz.attempts} attempts</span>
+                    <span className="quiz-attempts">{quiz.attempts} {quiz.attempts === 1 ? 'attempt' : 'attempts'}</span>
                   </div>
                   <div className="quiz-card-footer">
                     <span className="quiz-date">
@@ -172,7 +176,7 @@ export default function QuizHub() {
                       className="take-quiz-btn"
                       onClick={() => navigate(`/quizzes/take/${quiz.id}`)}
                     >
-                      Take Again <ChevronRight size={14} />
+                      {quiz.attempts > 0 ? 'Take Again' : 'Take Quiz'} <ChevronRight size={14} />
                     </button>
                   </div>
                 </div>

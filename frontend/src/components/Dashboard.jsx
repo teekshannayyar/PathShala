@@ -48,7 +48,7 @@ export default function Dashboard({ onDocumentSelect }) {
             <div className="stat-icon-box"><MessageSquare size={18} /></div>
           </div>
           <div className="stat-value">{userStats.active_chats}</div>
-          <div className="stat-footer">Processed and ready</div>
+          <div className="stat-footer">Documents you've chatted with</div>
         </div>
 
         <div className="stat-card glass">
@@ -56,9 +56,9 @@ export default function Dashboard({ onDocumentSelect }) {
             <span className="stat-title">Study Streak</span>
             <div className="stat-icon-box"><Zap size={18} /></div>
           </div>
-          <div className="stat-value">{userStats.current_streak} <span style={{fontSize: '20px'}}>Days</span></div>
+          <div className="stat-value">{userStats.current_streak} <span style={{fontSize: '20px'}}>{userStats.current_streak === 1 ? 'Day' : 'Days'}</span></div>
           <div className="stat-footer" style={{display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)'}}>
-            <TrendingUp size={14} /> Highest Streak: {userStats.highest_streak}
+            <TrendingUp size={14} /> Highest Streak: {userStats.highest_streak} {userStats.highest_streak === 1 ? 'day' : 'days'}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { BookOpen, Check, Eye, EyeOff, MessageSquare, Zap, Shield } from 'lucide-react';
-import { login, register, googleLogin } from '../api';
+import { login, register, googleLogin, errorMessage } from '../api';
 import './Auth.css';
 
 const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -21,7 +21,8 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
   // Password validation checks
   const hasMinLength = formData.password.length >= 8;
   const hasUpper = /[A-Z]/.test(formData.password);
-  const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
+  // Any character that isn't a letter or digit counts as a symbol (incl. - and _).
+  const hasSymbol = /[^A-Za-z0-9]/.test(formData.password);
   const isPasswordValid = hasMinLength && hasUpper && hasSymbol;
 
   const handleManualAuth = async (e) => {
@@ -44,7 +45,7 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Authentication failed. (Check backend terminal for exact error)');
+      setError(errorMessage(err, 'Authentication failed. Please try again.'));
     }
   };
 
@@ -54,7 +55,7 @@ export default function Auth({ onLogin, defaultIsLogin = true }) {
       onLogin(data.user, data.access_token);
     } catch (err) {
       console.error(err);
-      setError('Login failed. Please make sure the backend is running.');
+      setError(errorMessage(err, 'Login failed. Please make sure the backend is running.'));
     }
   };
 

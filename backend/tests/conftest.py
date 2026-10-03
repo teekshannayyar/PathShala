@@ -65,7 +65,7 @@ from app.services.embedding_service import EmbeddingService, get_embedding_servi
 from app.services.fake_embedder import FakeEmbedder  # noqa: E402
 from app.services.llm_service import LLMService, get_llm_service  # noqa: E402
 
-TEST_PASSWORD = "correct-horse-battery"
+TEST_PASSWORD = "Correct-horse-battery"
 
 
 # --------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -43,6 +43,26 @@ class Settings(BaseSettings):
     # Only set it when the proxy always overwrites the header, or clients
     # could choose their own rate-limit key.
     CLIENT_IP_HEADER: Optional[str] = None
+
+    # Folder holding the built frontend (frontend/dist). When set, the API also
+    # serves the web app from "/", so one service hosts the whole site
+    # (Dockerfile.preview). Empty: the API serves only the API.
+    FRONTEND_DIST_DIR: Optional[str] = None
+    # Re-embed ready documents whose vectors are missing, in the background at
+    # startup. For hosts without a persistent disk, where the on-disk Chroma
+    # store is wiped on every restart while Postgres keeps each document's text.
+    REINDEX_ON_STARTUP: bool = False
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _use_psycopg2(cls, url: str) -> str:
+        # Hosts hand out postgres:// or postgresql:// URLs. SQLAlchemy rejects
+        # the first and, since 2.1, maps the second to psycopg 3, which isn't
+        # installed; pin both to the psycopg2 driver we ship.
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg2://" + url[len(prefix):]
+        return url
 
     @model_validator(mode="after")
     def _check_chroma(self) -> "Settings":

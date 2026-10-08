@@ -148,6 +148,7 @@ Nothing is deployed by this repo; it contains the config to do so. See the Deplo
   docker run --env-file backend/.env -p 8000:8000 pathshala-api
   ```
   Inside a container `localhost` is the container itself, so point `DATABASE_URL` at a reachable host (on Linux, add `--network host` instead of `-p 8000:8000` to use the host's Postgres).
+- **Free preview, Render:** [`render-preview.yaml`](render-preview.yaml) runs the whole site as one free Docker service built from [`Dockerfile.preview`](Dockerfile.preview): the API also serves the built frontend (`FRONTEND_DIST_DIR`), so there is one URL and no CORS setup. It uses the hash embedder (`EMBEDDING_BACKEND=fake`) to fit in 512 MB, a free Postgres that Render deletes after 30 days, and `REINDEX_ON_STARTUP=true` to rebuild the search index from Postgres after each restart, since the free plan has no disk. Apply it in Render with *New > Blueprint* and *Blueprint Path* `render-preview.yaml`. It is a preview, not the launch setup.
 - **API, Render:** [`render.yaml`](render.yaml) is a Blueprint for the Docker service with a health check on `/health`, a 1 GB disk at `/var/data` (uploads and Chroma), `CLIENT_IP_HEADER=cf-connecting-ip` for rate limits, an optional managed Postgres on the paid `basic-256mb` plan (Render's free Postgres expires after 30 days), and every secret as `sync: false`.
 - **Frontend, Vercel:** [`frontend/vercel.json`](frontend/vercel.json) rewrites every path to `index.html`, so deep links like `/quizzes` survive a refresh. Set `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` in the Vercel project (they're baked in at build time).
 - **Google OAuth:** add the production frontend origin to the OAuth client's *Authorized JavaScript origins*, and to the API's `FRONTEND_URL`.
@@ -163,7 +164,7 @@ No real values belong in this file or in git. `backend/.env` and `frontend/.env*
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | *required* | SQLAlchemy URL, e.g. `postgresql+psycopg2://USER:PASSWORD@localhost:5432/pathshala`. Alembic reads it too. |
+| `DATABASE_URL` | *required* | SQLAlchemy URL, e.g. `postgresql+psycopg2://USER:PASSWORD@localhost:5432/pathshala`. Alembic reads it too. `postgres://` and `postgresql://` URLs from hosting providers are switched to the `psycopg2` driver automatically. |
 | `GROQ_API_KEY` | *required* | Groq API key. Any placeholder lets the app start, but chat and quizzes then fail with 502. |
 | `GROQ_MODEL` | `openai/gpt-oss-20b` | Groq model used for chat and quiz generation. |
 | `SECRET_KEY` | *required* | Signs JWTs (HS256). Use a long random string. |
@@ -182,6 +183,8 @@ No real values belong in this file or in git. `backend/.env` and `frontend/.env*
 | `CHROMA_API_KEY` | *(none)* | Required for `cloud`; optional `x-chroma-token` for `http`. |
 | `CHROMA_TENANT` | *(none)* | Chroma Cloud tenant (`cloud` mode, optional). |
 | `CHROMA_DATABASE` | *(none)* | Chroma Cloud database (`cloud` mode, optional). |
+| `FRONTEND_DIST_DIR` | *(none)* | Folder with the built frontend. When set, the API also serves the web app from `/` (used by `Dockerfile.preview`). |
+| `REINDEX_ON_STARTUP` | `false` | At startup, re-embed ready documents whose vectors are missing, from the text in Postgres. For hosts without a persistent disk. |
 | `RATE_LIMIT_ENABLED` | `true` | Turns the per-IP rate limits on or off. |
 | `RATE_LIMIT_STORAGE_URI` | *(empty = in-process memory)* | Shared counter store, e.g. `redis://host:6379` (needs the `redis` package, not installed by default). |
 | `PORT` | `8000` | Docker image only: port uvicorn listens on (Render sets it). |
@@ -193,7 +196,7 @@ No real values belong in this file or in git. `backend/.env` and `frontend/.env*
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_URL` | `http://127.0.0.1:8000` | Backend base URL, without `/api`. |
+| `VITE_API_URL` | `http://127.0.0.1:8000` | Backend base URL, without `/api`. Set it to an empty string when the API serves the site from the same origin. |
 | `VITE_GOOGLE_CLIENT_ID` | *(empty: Google sign-in hidden)* | Same OAuth client ID as the backend's `GOOGLE_CLIENT_ID`. |
 
 ---

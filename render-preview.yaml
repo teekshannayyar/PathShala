@@ -1,0 +1,52 @@
+# Free preview on Render: one Docker service serves the web app and the API
+# from the same URL (Dockerfile.preview), plus a free Postgres. Apply it as a
+# Blueprint with "Blueprint Path" set to render-preview.yaml. The paid
+# production setup is render.yaml (API) with the frontend on Vercel.
+#
+# Free-plan limits: the service sleeps after 15 minutes without traffic (the
+# next visit takes about a minute to wake it), the free Postgres is deleted
+# 30 days after it is created, and there is no persistent disk. The disk
+# matters less than it sounds: documents and their text live in Postgres, and
+# REINDEX_ON_STARTUP rebuilds the search index from them after each restart.
+# Only "Reprocess" on an older document fails, because its PDF file is gone.
+services:
+  - type: web
+    name: pathshala
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile.preview
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pathshala-preview-db
+          property: connectionString
+      # Render asks for this when the Blueprint is applied; it never lives here.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      # Google sign-in is off in the preview (email sign-up works). To turn it
+      # on, set GOOGLE_CLIENT_ID and VITE_GOOGLE_CLIENT_ID to your OAuth client
+      # id, add this service's URL to the client's Authorized JavaScript
+      # origins, and redeploy (Render passes VITE_GOOGLE_CLIENT_ID to the build).
+      - key: GOOGLE_CLIENT_ID
+        value: google-sign-in-not-configured
+      - key: REINDEX_ON_STARTUP
+        value: "true"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      # See render.yaml: Render's edge overwrites CF-Connecting-IP.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
+      - key: ANONYMIZED_TELEMETRY
+        value: "False"
+
+databases:
+  - name: pathshala-preview-db
+    plan: free
+    region: singapore
+    databaseName: pathshala
+    user: pathshala

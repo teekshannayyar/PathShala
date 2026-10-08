@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-export const API_BASE = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+// An empty VITE_API_URL means the API is on the same origin as the site
+// (Dockerfile.preview); unset means the local dev server.
+export const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export const api = axios.create({
   baseURL: `${API_BASE}/api`,

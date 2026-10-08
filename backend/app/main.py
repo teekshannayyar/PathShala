@@ -1,3 +1,6 @@
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -10,7 +13,18 @@ from app.api.routes import documents, chat, auth, quizzes
 # The schema is managed by Alembic (`alembic upgrade head`); startup never
 # creates or alters tables.
 
-app = FastAPI(title="PathShala API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.REINDEX_ON_STARTUP:
+        from app.services.reindex_service import reindex_missing_documents
+
+        # In the background so the health check passes while it runs.
+        threading.Thread(target=reindex_missing_documents, name="reindex", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="PathShala API", version="1.0.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
@@ -41,3 +55,10 @@ def health_check():
         "llm_provider": "groq",
         "model": settings.GROQ_MODEL
     }
+
+
+# Registered last: its catch-all route must not shadow any API route.
+if settings.FRONTEND_DIST_DIR:
+    from app.frontend import mount_frontend
+
+    mount_frontend(app, settings.FRONTEND_DIST_DIR)

@@ -1,0 +1,16 @@
+# For Dockerfile.preview, whose context is the repository root.
+# (backend/Dockerfile builds from backend/ and uses backend/.dockerignore.)
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+frontend/dist
+backend/uploads
+backend/chroma_data
+backend/tests
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+**/.pytest_cache

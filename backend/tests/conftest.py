@@ -50,6 +50,8 @@ os.environ.update(
         "RATE_LIMIT_ENABLED": "false",
         "RATE_LIMIT_STORAGE_URI": "",
         "CLIENT_IP_HEADER": "",
+        "FRONTEND_DIST_DIR": "",
+        "REINDEX_ON_STARTUP": "false",
     }
 )
 

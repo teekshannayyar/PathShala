@@ -1,0 +1,39 @@
+# Free-tier preview: one container serves the web app and the API from the
+# same origin, small enough for a 512 MB instance (render-preview.yaml).
+# Build from the repository root:
+#   docker build -f Dockerfile.preview -t pathshala-preview .
+# It uses the offline hash embedder (EMBEDDING_BACKEND=fake) instead of the
+# sentence-transformers model, which needs about 1 GB of RAM. For production,
+# use backend/Dockerfile with render.yaml and the frontend on Vercel.
+
+FROM node:22-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# Same origin as the API, so requests go to /api with no CORS. Google sign-in
+# is shown only when a client id is passed at build time.
+ARG VITE_GOOGLE_CLIENT_ID=
+ENV VITE_API_URL= \
+    VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+RUN npm run build
+
+FROM python:3.11-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    EMBEDDING_BACKEND=fake \
+    FRONTEND_DIST_DIR=/app/frontend-dist
+WORKDIR /app
+
+# Everything except sentence-transformers (and with it torch).
+COPY backend/requirements.txt .
+RUN grep -v '^sentence-transformers' requirements.txt > requirements-preview.txt \
+    && pip install --no-cache-dir -r requirements-preview.txt
+
+COPY backend/ ./
+COPY --from=frontend /frontend/dist ./frontend-dist
+
+EXPOSE 8000
+# See backend/Dockerfile for why X-Forwarded-For is trusted only from localhost.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-127.0.0.1}\""]
